@@ -4,7 +4,7 @@
  * and allows reprinting past sale receipts.
  */
 
-import { store } from './store.js';
+import { store, formatMoney } from './store.js';
 
 export class ReportsController {
   constructor(onReprintRequested) {
@@ -97,7 +97,7 @@ export class ReportsController {
             <span class="stat-icon">💰</span>
             <div class="stat-details">
               <span class="stat-title">Total Revenue</span>
-              <span class="stat-number"><strong>${currency}${totalRevenue.toFixed(2)}</strong></span>
+              <span class="stat-number"><strong>${formatMoney(totalRevenue)}</strong></span>
               <span class="stat-hint">${sales.length} sale transaction${sales.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
@@ -115,7 +115,7 @@ export class ReportsController {
             <span class="stat-icon">🏷️</span>
             <div class="stat-details">
               <span class="stat-title">Bulk Discounts Given</span>
-              <span class="stat-number"><strong>${currency}${totalDiscountGiven.toFixed(2)}</strong></span>
+              <span class="stat-number"><strong>${formatMoney(totalDiscountGiven)}</strong></span>
               <span class="stat-hint">From wholesale/bulk orders</span>
             </div>
           </div>
@@ -124,7 +124,7 @@ export class ReportsController {
             <span class="stat-icon">⏳</span>
             <div class="stat-details">
               <span class="stat-title">Outstanding Credit (Pay Later)</span>
-              <span class="stat-number text-warning"><strong>${currency}${paymentTotals['Pay Later (Credit)'].toFixed(2)}</strong></span>
+              <span class="stat-number text-warning"><strong>${formatMoney(paymentTotals['Pay Later (Credit)'])}</strong></span>
               <span class="stat-hint">Customer credit to collect</span>
             </div>
           </div>
@@ -148,7 +148,7 @@ export class ReportsController {
                     <div class="size-progress-labels">
                       <span class="size-prog-name"><strong>${sizeName}</strong></span>
                       <span class="size-prog-vals">
-                        <strong>${data.crates} crates</strong> (${percent}%) — ${currency}${data.revenue.toFixed(2)}
+                        <strong>${data.crates} crates</strong> (${percent}%) — ${formatMoney(data.revenue)}
                       </span>
                     </div>
                     <div class="progress-bar-bg">
@@ -164,28 +164,28 @@ export class ReportsController {
           <div class="breakdown-card">
             <div class="breakdown-header">
               <h3>💳 Collections by Payment Method</h3>
-              <span class="badge-total">${currency}${totalRevenue.toFixed(2)} Total</span>
+              <span class="badge-total">${formatMoney(totalRevenue)} Total</span>
             </div>
             <div class="payment-method-list">
               <div class="pay-method-row">
                 <span class="pay-method-name">💵 Cash</span>
-                <span class="pay-method-amount"><strong>${currency}${paymentTotals['Cash'].toFixed(2)}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Cash'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">📱 Mobile Money</span>
-                <span class="pay-method-amount"><strong>${currency}${paymentTotals['Mobile Money'].toFixed(2)}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Mobile Money'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">💳 Card</span>
-                <span class="pay-method-amount"><strong>${currency}${paymentTotals['Card'].toFixed(2)}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Card'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">⏳ Pay Later (Credit)</span>
-                <span class="pay-method-amount text-warning"><strong>${currency}${paymentTotals['Pay Later (Credit)'].toFixed(2)}</strong></span>
+                <span class="pay-method-amount text-warning"><strong>${formatMoney(paymentTotals['Pay Later (Credit)'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">🔀 Split Payment</span>
-                <span class="pay-method-amount"><strong>${currency}${paymentTotals['Split Payment'].toFixed(2)}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Split Payment'])}</strong></span>
               </div>
             </div>
           </div>
@@ -233,7 +233,7 @@ export class ReportsController {
                       <td class="td-items-summary" title="${itemsSummary}">${itemsSummary}</td>
                       <td><strong>${s.totalCrates} cr</strong></td>
                       <td><span class="status-badge status-ok">${method}</span></td>
-                      <td><strong>${currency}${s.grandTotal.toFixed(2)}</strong></td>
+                      <td><strong>${formatMoney(s.grandTotal)}</strong></td>
                       <td class="text-right no-print">
                         <button type="button" class="btn btn-sm btn-secondary btn-reprint-receipt" data-salenum="${s.saleNumber}">
                           Reprint Receipt

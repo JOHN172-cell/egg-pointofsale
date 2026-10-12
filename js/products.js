@@ -4,7 +4,7 @@
  * prices per crate, low stock warning thresholds, and active status.
  */
 
-import { store } from './store.js';
+import { store, formatMoney } from './store.js';
 
 export class ProductsController {
   constructor() {
@@ -74,10 +74,10 @@ export class ProductsController {
                       </div>
                     </td>
                     <td>
-                      <strong class="price-val">${currency}${prod.retailPrice.toFixed(2)}</strong>
+                      <strong class="price-val">${formatMoney(prod.retailPrice)}</strong>
                     </td>
                     <td>
-                      <span class="price-val-wholesale">${currency}${prod.wholesalePrice.toFixed(2)}</span>
+                      <span class="price-val-wholesale">${formatMoney(prod.wholesalePrice)}</span>
                     </td>
                     <td>
                       <strong>${prod.stock}</strong> crates

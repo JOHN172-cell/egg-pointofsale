@@ -4,7 +4,7 @@
  * and crate count adjustments (strictly whole numbers).
  */
 
-import { store } from './store.js';
+import { store, formatMoney } from './store.js';
 
 export class PosController {
   constructor() {
@@ -241,7 +241,7 @@ export class PosController {
                       <span class="prod-price-unit">/ crate</span>
                     </div>
                     <div class="prod-sub-note">
-                      ${this.priceType === 'retail' ? `Wholesale: ${calcs.currencySymbol}${prod.wholesalePrice.toFixed(2)}` : `Retail: ${calcs.currencySymbol}${prod.retailPrice.toFixed(2)}`}
+                      ${this.priceType === 'retail' ? `Wholesale: ${formatMoney(prod.wholesalePrice)}` : `Retail: ${formatMoney(prod.retailPrice)}`}
                     </div>
                   </div>
 
@@ -324,7 +324,7 @@ export class PosController {
                       <div class="cart-item-info">
                         <div class="cart-item-name">${item.name}</div>
                         <div class="cart-item-rates">
-                          ${calcs.currencySymbol}${item.unitPrice.toFixed(2)} × ${item.crates} crate${item.crates > 1 ? 's' : ''}
+                          ${formatMoney(item.unitPrice)} × ${item.crates} crate${item.crates > 1 ? 's' : ''}
                         </div>
                       </div>
 
@@ -354,7 +354,7 @@ export class PosController {
                       </div>
 
                       <div class="cart-item-total">
-                        ${calcs.currencySymbol}${item.lineTotal.toFixed(2)}
+                        ${formatMoney(item.lineTotal)}
                       </div>
 
                       <button type="button" 
@@ -396,17 +396,17 @@ export class PosController {
               </div>
               <div class="summary-line">
                 <span>Subtotal</span>
-                <span>${calcs.currencySymbol}${calcs.subtotal.toFixed(2)}</span>
+                <span>${formatMoney(calcs.subtotal)}</span>
               </div>
               ${calcs.discountAmount > 0 ? `
                 <div class="summary-line discount-line">
                   <span>Bulk Discount (${calcs.discountPercent}%)</span>
-                  <span class="discount-val">− ${calcs.currencySymbol}${calcs.discountAmount.toFixed(2)}</span>
+                  <span class="discount-val">− ${formatMoney(calcs.discountAmount)}</span>
                 </div>
               ` : ''}
               <div class="summary-line grand-total-line">
                 <span>Grand Total</span>
-                <span class="grand-total-amount">${calcs.currencySymbol}${calcs.grandTotal.toFixed(2)}</span>
+                <span class="grand-total-amount">${formatMoney(calcs.grandTotal)}</span>
               </div>
             </div>
 
@@ -418,7 +418,7 @@ export class PosController {
                 ${this.cart.length === 0 ? 'disabled' : ''}>
                 <span class="checkout-icon">💳</span>
                 <span>Proceed to Payment</span>
-                <span class="checkout-total">(${calcs.currencySymbol}${calcs.grandTotal.toFixed(2)})</span>
+                <span class="checkout-total">(${formatMoney(calcs.grandTotal)})</span>
               </button>
             </div>
           </div>

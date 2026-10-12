@@ -4,7 +4,7 @@
  * handles deliveries, low-stock alerts, and manual adjustments.
  */
 
-import { store } from './store.js';
+import { store, formatMoney } from './store.js';
 
 export class StockController {
   constructor() {
@@ -68,7 +68,7 @@ export class StockController {
             <span class="stat-icon">💰</span>
             <div class="stat-info">
               <span class="stat-label">Estimated Stock Value (Retail)</span>
-              <span class="stat-value"><strong>${currency}${totalStockValue.toFixed(2)}</strong></span>
+              <span class="stat-value"><strong>${formatMoney(totalStockValue)}</strong></span>
               <span class="stat-sub">Across ${products.filter(p=>p.active).length} egg sizes</span>
             </div>
           </div>
@@ -132,11 +132,11 @@ export class StockController {
                     </div>
                     <div>
                       <span class="detail-label">Retail / Crate:</span>
-                      <span class="detail-val">${currency}${prod.retailPrice.toFixed(2)}</span>
+                      <span class="detail-val">${formatMoney(prod.retailPrice)}</span>
                     </div>
                     <div>
                       <span class="detail-label">Wholesale / Crate:</span>
-                      <span class="detail-val">${currency}${prod.wholesalePrice.toFixed(2)}</span>
+                      <span class="detail-val">${formatMoney(prod.wholesalePrice)}</span>
                     </div>
                   </div>
 

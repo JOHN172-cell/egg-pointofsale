@@ -433,3 +433,13 @@ class Store {
 }
 
 export const store = new Store();
+
+/**
+ * Formats a monetary number with a guaranteed space between currency symbol and digits
+ * for high clarity and readability.
+ */
+export function formatMoney(amount, customSymbol = null) {
+  const sym = customSymbol !== null ? customSymbol : (store.getSettings().currencySymbol || 'GH₵');
+  const num = Number(amount) || 0;
+  return `${sym} ${num.toFixed(2)}`;
+}

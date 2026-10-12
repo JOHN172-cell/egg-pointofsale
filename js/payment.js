@@ -4,7 +4,7 @@
  * and Split Payments across two methods.
  */
 
-import { store } from './store.js';
+import { store, formatMoney } from './store.js';
 
 export class PaymentModal {
   constructor(modalElement, onSaleCompleted) {
@@ -161,10 +161,10 @@ export class PaymentModal {
 
           <!-- Quick Cash Denominations -->
           <div class="cash-quick-buttons">
-            <button type="button" class="btn-denom" data-amount="${total}">Exact (${currency}${total.toFixed(2)})</button>
-            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 50) * 50}">${currency}${Math.ceil(total / 50) * 50}</button>
-            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 100) * 100}">${currency}${Math.ceil(total / 100) * 100}</button>
-            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 200) * 200 || 200}">${currency}${Math.ceil(total / 200) * 200 || 200}</button>
+            <button type="button" class="btn-denom" data-amount="${total}">Exact (${formatMoney(total)})</button>
+            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 50) * 50}">${formatMoney(Math.ceil(total / 50) * 50)}</button>
+            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 100) * 100}">${formatMoney(Math.ceil(total / 100) * 100)}</button>
+            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 200) * 200 || 200}">${formatMoney(Math.ceil(total / 200) * 200 || 200)}</button>
             <button type="button" class="btn-denom" data-add="50">+50</button>
             <button type="button" class="btn-denom" data-add="100">+100</button>
           </div>
@@ -173,7 +173,7 @@ export class PaymentModal {
           <div class="cash-change-display ${underpaid ? 'is-underpaid' : 'is-sufficient'}">
             <div class="change-label">${underpaid ? 'Amount Short (Remaining Due)' : 'Change to Customer'}</div>
             <div class="change-amount">
-              ${currency}${underpaid ? (total - this.amountTendered).toFixed(2) : change.toFixed(2)}
+              ${underpaid ? formatMoney(total - this.amountTendered) : formatMoney(change)}
             </div>
             <div class="change-status-tag">
               ${underpaid ? '<span class="status-badge status-out">Underpaid</span>' : '<span class="status-badge status-ok">Sufficient Cash</span>'}
@@ -216,7 +216,7 @@ export class PaymentModal {
           </div>
 
           <div class="momo-summary-box">
-            <span>Direct prompt: Ensure customer has confirmed transaction of <strong>${currency}${total.toFixed(2)}</strong> to Sylcat Farms.</span>
+            <span>Direct prompt: Ensure customer has confirmed transaction of <strong>${formatMoney(total)}</strong> to Sylcat Farms.</span>
           </div>
         </div>
       `;
@@ -227,7 +227,7 @@ export class PaymentModal {
         <div class="pay-panel-card">
           <div class="card-prompt-box">
             <div class="card-icon-big">💳</div>
-            <p>Insert or Tap customer card on POS terminal for <strong>${currency}${total.toFixed(2)}</strong></p>
+            <p>Insert or Tap customer card on POS terminal for <strong>${formatMoney(total)}</strong></p>
           </div>
           <div class="form-group">
             <label for="card-ref" class="form-label">Approval Code / Slip Ref (Optional)</label>
@@ -242,7 +242,7 @@ export class PaymentModal {
         <div class="pay-panel-credit">
           <div class="alert alert-warning">
             <span class="alert-icon">⚠️</span>
-            <span><strong>Pay Later (Credit Sale):</strong> This transaction will be recorded with an outstanding balance of <strong>${currency}${total.toFixed(2)}</strong>.</span>
+            <span><strong>Pay Later (Credit Sale):</strong> This transaction will be recorded with an outstanding balance of <strong>${formatMoney(total)}</strong>.</span>
           </div>
 
           <div class="form-group">
@@ -271,7 +271,7 @@ export class PaymentModal {
     if (this.activeMethod === 'split') {
       return `
         <div class="pay-panel-split">
-          <p class="split-instruction">Divide the total payment of <strong>${currency}${total.toFixed(2)}</strong> across two payment methods.</p>
+          <p class="split-instruction">Divide the total payment of <strong>${formatMoney(total)}</strong> across two payment methods.</p>
 
           <!-- Split Part 1 -->
           <div class="split-row-box">
@@ -307,8 +307,8 @@ export class PaymentModal {
           </div>
 
           <div class="split-balance-bar">
-            <span>Total Combined: <strong>${currency}${(Number(this.splitAmount1) + Number(this.splitAmount2)).toFixed(2)}</strong></span>
-            <span>Difference: <strong>${currency}${(total - (Number(this.splitAmount1) + Number(this.splitAmount2))).toFixed(2)}</strong></span>
+            <span>Total Combined: <strong>${formatMoney(Number(this.splitAmount1) + Number(this.splitAmount2))}</strong></span>
+            <span>Difference: <strong>${formatMoney(total - (Number(this.splitAmount1) + Number(this.splitAmount2)))}</strong></span>
           </div>
         </div>
       `;
@@ -408,7 +408,7 @@ export class PaymentModal {
 
     changeBox.className = `cash-change-display ${underpaid ? 'is-underpaid' : 'is-sufficient'}`;
     changeBox.querySelector('.change-label').textContent = underpaid ? 'Amount Short (Remaining Due)' : 'Change to Customer';
-    changeBox.querySelector('.change-amount').textContent = `${currency}${underpaid ? (total - this.amountTendered).toFixed(2) : (this.amountTendered - total).toFixed(2)}`;
+    changeBox.querySelector('.change-amount').textContent = underpaid ? formatMoney(total - this.amountTendered) : formatMoney(this.amountTendered - total);
     changeBox.querySelector('.change-status-tag').innerHTML = underpaid ? '<span class="status-badge status-out">Underpaid</span>' : '<span class="status-badge status-ok">Sufficient Cash</span>';
   }
 

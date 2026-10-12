@@ -4,7 +4,7 @@
  * signature sections, print formatting, WhatsApp, and SMS sharing.
  */
 
-import { store } from './store.js';
+import { store, formatMoney } from './store.js';
 
 export class ReceiptModal {
   constructor(modalElement) {
@@ -75,35 +75,35 @@ export class ReceiptModal {
     sale.items.forEach(i => {
       const name = (i.name.length > 10 ? i.name.substring(0, 10) : i.name).padEnd(11);
       const qty = `${i.crates}cr`.padEnd(7);
-      const rate = `${sym}${i.unitPrice.toFixed(0)}`.padEnd(7);
-      const tot = `${sym}${i.lineTotal.toFixed(2)}`;
+      const rate = `${sym} ${i.unitPrice.toFixed(0)}`.padEnd(9);
+      const tot = `${sym} ${i.lineTotal.toFixed(2)}`;
       lines.push(`${name} ${qty} ${rate} ${tot}`);
     });
 
     lines.push('--------------------------------');
     lines.push(`Total Crates:   ${sale.totalCrates} Crates`);
-    lines.push(`Subtotal:       ${sym}${sale.subtotal.toFixed(2)}`);
+    lines.push(`Subtotal:       ${sym} ${sale.subtotal.toFixed(2)}`);
     if (sale.discountAmount > 0) {
-      lines.push(`Bulk Discount: -${sym}${sale.discountAmount.toFixed(2)} (${sale.discountPercent}%)`);
+      lines.push(`Bulk Discount: -${sym} ${sale.discountAmount.toFixed(2)} (${sale.discountPercent}%)`);
     }
-    lines.push(`GRAND TOTAL:    ${sym}${sale.grandTotal.toFixed(2)}`);
+    lines.push(`GRAND TOTAL:    ${sym} ${sale.grandTotal.toFixed(2)}`);
     lines.push('--------------------------------');
 
     if (sale.paymentDetails) {
       const p = sale.paymentDetails;
       lines.push(`Payment Method: ${p.method}`);
       if (p.method === 'Cash') {
-        lines.push(`Tendered:       ${sym}${Number(p.amountTendered).toFixed(2)}`);
-        lines.push(`Change:         ${sym}${Number(p.change).toFixed(2)}`);
+        lines.push(`Tendered:       ${sym} ${Number(p.amountTendered).toFixed(2)}`);
+        lines.push(`Change:         ${sym} ${Number(p.change).toFixed(2)}`);
       } else if (p.method === 'Mobile Money') {
         lines.push(`Network:        ${p.network}`);
         if (p.reference) lines.push(`Ref:            ${p.reference}`);
       } else if (p.method === 'Pay Later (Credit)') {
-        lines.push(`Balance Due:    ${sym}${Number(p.balanceDue).toFixed(2)}`);
+        lines.push(`Balance Due:    ${sym} ${Number(p.balanceDue).toFixed(2)}`);
         if (p.dueDate) lines.push(`Due Date:       ${p.dueDate}`);
       } else if (p.method === 'Split Payment') {
-        lines.push(`Part 1:         ${p.split1.method} (${sym}${p.split1.amount.toFixed(2)})`);
-        lines.push(`Part 2:         ${p.split2.method} (${sym}${p.split2.amount.toFixed(2)})`);
+        lines.push(`Part 1:         ${p.split1.method} (${sym} ${p.split1.amount.toFixed(2)})`);
+        lines.push(`Part 2:         ${p.split2.method} (${sym} ${p.split2.amount.toFixed(2)})`);
       }
     }
 
@@ -238,8 +238,8 @@ export class ReceiptModal {
                     <div class="item-sub-desc">Full 30-egg crate (${item.crates * 30} eggs total)</div>
                   </td>
                   <td class="col-qty"><strong>${item.crates}</strong> Crates</td>
-                  <td class="col-price">${currency}${item.unitPrice.toFixed(2)}</td>
-                  <td class="col-total">${currency}${item.lineTotal.toFixed(2)}</td>
+                  <td class="col-price">${formatMoney(item.unitPrice)}</td>
+                  <td class="col-total">${formatMoney(item.lineTotal)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -266,17 +266,17 @@ export class ReceiptModal {
               </div>
               <div class="total-row">
                 <span>Subtotal:</span>
-                <span>${currency}${sale.subtotal.toFixed(2)}</span>
+                <span>${formatMoney(sale.subtotal)}</span>
               </div>
               ${sale.discountAmount > 0 ? `
                 <div class="total-row discount-row">
                   <span>Bulk Discount (${sale.discountPercent}%):</span>
-                  <span>−${currency}${sale.discountAmount.toFixed(2)}</span>
+                  <span>− ${formatMoney(sale.discountAmount)}</span>
                 </div>
               ` : ''}
               <div class="total-row grand-total-row">
                 <span>TOTAL AMOUNT:</span>
-                <span class="total-grand-number">${currency}${sale.grandTotal.toFixed(2)}</span>
+                <span class="total-grand-number">${formatMoney(sale.grandTotal)}</span>
               </div>
             </div>
           </div>
@@ -295,11 +295,11 @@ export class ReceiptModal {
               ${sale.paymentDetails && sale.paymentDetails.method === 'Cash' ? `
                 <div class="payment-detail-row">
                   <span>Amount Tendered:</span>
-                  <span>${currency}${Number(sale.paymentDetails.amountTendered).toFixed(2)}</span>
+                  <span>${formatMoney(sale.paymentDetails.amountTendered)}</span>
                 </div>
                 <div class="payment-detail-row highlight-change">
                   <span>Change Returned:</span>
-                  <span><strong>${currency}${Number(sale.paymentDetails.change).toFixed(2)}</strong></span>
+                  <span><strong>${formatMoney(sale.paymentDetails.change)}</strong></span>
                 </div>
               ` : ''}
 
@@ -316,14 +316,14 @@ export class ReceiptModal {
                 ` : ''}
                 <div class="payment-detail-row">
                   <span>Amount Settled:</span>
-                  <span>${currency}${sale.grandTotal.toFixed(2)}</span>
+                  <span>${formatMoney(sale.grandTotal)}</span>
                 </div>
               ` : ''}
 
               ${sale.paymentDetails && sale.paymentDetails.method === 'Pay Later (Credit)' ? `
                 <div class="payment-detail-row highlight-due">
                   <span>Outstanding Balance:</span>
-                  <span><strong>${currency}${sale.grandTotal.toFixed(2)}</strong></span>
+                  <span><strong>${formatMoney(sale.grandTotal)}</strong></span>
                 </div>
                 ${sale.paymentDetails.dueDate ? `
                   <div class="payment-detail-row">
@@ -336,11 +336,11 @@ export class ReceiptModal {
               ${sale.paymentDetails && sale.paymentDetails.method === 'Split Payment' ? `
                 <div class="payment-detail-row">
                   <span>Part 1 (${sale.paymentDetails.split1.method}):</span>
-                  <span>${currency}${sale.paymentDetails.split1.amount.toFixed(2)}</span>
+                  <span>${formatMoney(sale.paymentDetails.split1.amount)}</span>
                 </div>
                 <div class="payment-detail-row">
                   <span>Part 2 (${sale.paymentDetails.split2.method}):</span>
-                  <span>${currency}${sale.paymentDetails.split2.amount.toFixed(2)}</span>
+                  <span>${formatMoney(sale.paymentDetails.split2.amount)}</span>
                 </div>
               ` : ''}
             </div>
