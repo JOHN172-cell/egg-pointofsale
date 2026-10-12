@@ -27,52 +27,64 @@ const DEFAULT_SETTINGS = {
 
 const DEFAULT_PRODUCTS = [
   {
-    id: 'prod-small',
-    sizeKey: 'small',
-    name: 'Small Eggs',
-    sizeLabel: 'Small',
+    id: 'prod-peoples',
+    sizeKey: 'peoples',
+    name: 'Peoples Size',
+    sizeLabel: 'Peoples',
     retailPrice: 50,
     wholesalePrice: 46,
     stock: 45,
     lowStockLevel: 10,
     active: true,
-    description: 'Fresh farm-graded Small egg crates (30 eggs/crate)'
+    description: 'Peoples Size egg crates (30 eggs/crate)'
   },
   {
-    id: 'prod-medium',
-    sizeKey: 'medium',
-    name: 'Medium Eggs',
-    sizeLabel: 'Medium',
+    id: 'prod-indomie',
+    sizeKey: 'indomie',
+    name: 'Indomie Size',
+    sizeLabel: 'Indomie',
     retailPrice: 56,
     wholesalePrice: 52,
     stock: 80,
     lowStockLevel: 15,
     active: true,
-    description: 'Standard farm-fresh Medium egg crates (30 eggs/crate)'
+    description: 'Indomie Size egg crates (30 eggs/crate)'
   },
   {
-    id: 'prod-large',
-    sizeKey: 'large',
-    name: 'Large Eggs',
-    sizeLabel: 'Large',
+    id: 'prod-family',
+    sizeKey: 'family',
+    name: 'Family Size',
+    sizeLabel: 'Family',
     retailPrice: 64,
     wholesalePrice: 60,
     stock: 60,
     lowStockLevel: 15,
     active: true,
-    description: 'Select Large golden egg crates (30 eggs/crate)'
+    description: 'Family Size egg crates (30 eggs/crate)'
   },
   {
-    id: 'prod-jumbo',
-    sizeKey: 'jumbo',
-    name: 'Jumbo Eggs',
-    sizeLabel: 'Jumbo',
+    id: 'prod-promotion',
+    sizeKey: 'promotion',
+    name: 'Promotion Size',
+    sizeLabel: 'Promotion',
     retailPrice: 72,
     wholesalePrice: 66,
     stock: 35,
     lowStockLevel: 8,
     active: true,
-    description: 'Premium Jumbo size egg crates (30 eggs/crate)'
+    description: 'Promotion Size egg crates (30 eggs/crate)'
+  },
+  {
+    id: 'prod-table',
+    sizeKey: 'table',
+    name: 'Table Size',
+    sizeLabel: 'Table',
+    retailPrice: 80,
+    wholesalePrice: 74,
+    stock: 25,
+    lowStockLevel: 8,
+    active: true,
+    description: 'Table Size egg crates (30 eggs/crate)'
   }
 ];
 
@@ -108,6 +120,77 @@ class Store {
       });
       this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
     }
+
+    // Migrate old product names to new Sylcat Farms egg size names
+    this.migrateProductNames();
+  }
+
+  migrateProductNames() {
+    const MIGRATION_KEY = 'sylcat_product_names_v2';
+    if (localStorage.getItem(MIGRATION_KEY)) return; // already migrated
+
+    const nameMap = {
+      'prod-small':  { sizeKey: 'peoples',   name: 'Peoples Size',   sizeLabel: 'Peoples',   description: 'Peoples Size egg crates (30 eggs/crate)' },
+      'prod-medium': { sizeKey: 'indomie',   name: 'Indomie Size',   sizeLabel: 'Indomie',   description: 'Indomie Size egg crates (30 eggs/crate)' },
+      'prod-large':  { sizeKey: 'family',    name: 'Family Size',    sizeLabel: 'Family',    description: 'Family Size egg crates (30 eggs/crate)' },
+      'prod-jumbo':  { sizeKey: 'promotion', name: 'Promotion Size', sizeLabel: 'Promotion', description: 'Promotion Size egg crates (30 eggs/crate)' }
+    };
+
+    let changed = false;
+    this.products.forEach(prod => {
+      if (nameMap[prod.id]) {
+        const m = nameMap[prod.id];
+        const newId = 'prod-' + m.sizeKey;
+        // Update stock logs to reference new id/name
+        this.stockLogs.forEach(log => {
+          if (log.productId === prod.id) {
+            log.productId = newId;
+            log.productName = m.name;
+          }
+        });
+        // Update sales history items
+        this.sales.forEach(sale => {
+          if (sale.items) {
+            sale.items.forEach(item => {
+              if (item.productId === prod.id) {
+                item.productId = newId;
+                item.productName = m.name;
+              }
+            });
+          }
+        });
+        prod.id = newId;
+        prod.sizeKey = m.sizeKey;
+        prod.name = m.name;
+        prod.sizeLabel = m.sizeLabel;
+        prod.description = m.description;
+        changed = true;
+      }
+    });
+
+    // Add Table Size if it doesn't exist yet
+    if (!this.products.find(p => p.id === 'prod-table')) {
+      this.products.push({
+        id: 'prod-table',
+        sizeKey: 'table',
+        name: 'Table Size',
+        sizeLabel: 'Table',
+        retailPrice: 80,
+        wholesalePrice: 74,
+        stock: 25,
+        lowStockLevel: 8,
+        active: true,
+        description: 'Table Size egg crates (30 eggs/crate)'
+      });
+      changed = true;
+    }
+
+    if (changed) {
+      this.save(STORAGE_KEYS.PRODUCTS, this.products);
+      this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
+      this.save(STORAGE_KEYS.SALES, this.sales);
+    }
+    localStorage.setItem(MIGRATION_KEY, '1');
   }
 
   load(key, fallback) {
