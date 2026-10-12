@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sylcat Farms - Egg Point of Sale (Full Crates Only)</title>
+  <meta name="description" content="Fast, web-based Point of Sale and crate inventory management system for Sylcat Farms. Full crates only.">
+
+  <!-- Google Fonts: Outfit & Inter for high-clarity typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Top Application Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-section">
+        <div class="brand-logo-badge" aria-hidden="true">🥚</div>
+        <div class="brand-title-wrap">
+          <h1 class="header-biz-name">Sylcat Farms</h1>
+          <div class="brand-sub">
+            <span class="crate-only-tag">FULL CRATES ONLY</span>
+            <span class="header-phone">📞 <span id="header-phone-display">022606689</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="header-stat-badge" id="header-stock-counter" title="Total crates in stock">
+          Loading stock...
+        </div>
+
+        <div class="theme-switch-wrapper">
+          <label for="select-theme-mode" class="visually-hidden">Display Theme</label>
+          <select id="select-theme-mode" class="theme-select" aria-label="Select Color Theme">
+            <option value="auto">🌓 Auto Theme</option>
+            <option value="light">☀️ Light Theme</option>
+            <option value="dark">🌙 Dark Theme</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tab Bar -->
+  <nav class="app-nav-bar" aria-label="Main POS Sections">
+    <div class="nav-inner" role="tablist">
+      <button type="button" class="app-nav-btn active" data-tab="pos" role="tab" aria-selected="true" id="tab-nav-pos">
+        <span class="nav-icon">🛒</span>
+        <span>Sales Terminal</span>
+      </button>
+      <button type="button" class="app-nav-btn" data-tab="stock" role="tab" aria-selected="false" id="tab-nav-stock">
+        <span class="nav-icon">📦</span>
+        <span>Stock Inventory</span>
+      </button>
+      <button type="button" class="app-nav-btn" data-tab="products" role="tab" aria-selected="false" id="tab-nav-products">
+        <span class="nav-icon">🥚</span>
+        <span>Egg Products & Prices</span>
+      </button>
+      <button type="button" class="app-nav-btn" data-tab="reports" role="tab" aria-selected="false" id="tab-nav-reports">
+        <span class="nav-icon">📊</span>
+        <span>Daily Sales Report</span>
+      </button>
+      <button type="button" class="app-nav-btn" data-tab="settings" role="tab" aria-selected="false" id="tab-nav-settings">
+        <span class="nav-icon">⚙️</span>
+        <span>Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main View Panels -->
+  <main class="app-main">
+    <!-- View 1: POS Sales Terminal -->
+    <section class="app-view-tab active" id="view-pos" role="tabpanel" aria-labelledby="tab-nav-pos"></section>
+
+    <!-- View 2: Stock Management -->
+    <section class="app-view-tab" id="view-stock" role="tabpanel" aria-labelledby="tab-nav-stock"></section>
+
+    <!-- View 3: Products & Pricing -->
+    <section class="app-view-tab" id="view-products" role="tabpanel" aria-labelledby="tab-nav-products"></section>
+
+    <!-- View 4: Daily Sales Reports -->
+    <section class="app-view-tab" id="view-reports" role="tabpanel" aria-labelledby="tab-nav-reports"></section>
+
+    <!-- View 5: Settings -->
+    <section class="app-view-tab" id="view-settings" role="tabpanel" aria-labelledby="tab-nav-settings"></section>
+  </main>
+
+  <!-- Global Modals -->
+  <!-- 1. Payment Modal -->
+  <dialog id="modal-payment" class="app-dialog" aria-labelledby="payment-modal-title">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="payment-modal-title">Payment & Checkout</h3>
+        <button type="button" class="modal-close-btn" aria-label="Close Payment Modal">×</button>
+      </div>
+      <div class="modal-body"></div>
+    </div>
+  </dialog>
+
+  <!-- 2. Receipt Modal -->
+  <dialog id="modal-receipt" class="app-dialog" aria-labelledby="receipt-modal-title">
+    <div class="dialog-content">
+      <div class="dialog-header no-print">
+        <h3 id="receipt-modal-title">Customer Sale Receipt</h3>
+        <button type="button" class="modal-close-btn" aria-label="Close Receipt Modal">×</button>
+      </div>
+      <div class="modal-body"></div>
+    </div>
+  </dialog>
+
+  <!-- Application Script Module -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
