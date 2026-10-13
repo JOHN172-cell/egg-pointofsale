@@ -14,22 +14,7 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <section id="auth-screen" class="auth-screen" aria-labelledby="auth-title">
-    <form id="login-form" class="auth-card">
-      <div class="brand-logo-badge" aria-hidden="true">🥚</div>
-      <h1 id="auth-title">Sylcat Farms POS</h1>
-      <p>Sign in with your staff account to continue.</p>
-      <label for="login-email">Email</label>
-      <input id="login-email" name="email" type="email" autocomplete="username" required>
-      <label for="login-password">Password</label>
-      <input id="login-password" name="password" type="password" autocomplete="current-password" required>
-      <p id="login-error" class="auth-error" role="alert" hidden></p>
-      <button class="btn btn-primary btn-block" type="submit">Sign in</button>
-      <small>Accounts are created by an administrator. Public signup is disabled.</small>
-    </form>
-  </section>
-
-  <div id="app-shell" hidden>
+  <div id="app-shell">
   <!-- Top Application Header -->
   <header class="app-header">
     <div class="header-inner">
@@ -46,7 +31,6 @@
 
       <div class="header-controls">
         <span id="staff-identity" class="staff-identity"></span>
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-logout">Log out</button>
         <div class="header-stat-badge" id="header-stock-counter" title="Total crates in stock">
           Loading stock...
         </div>
@@ -91,6 +75,9 @@
 
   <!-- Main View Panels -->
   <main class="app-main">
+    <div class="alert alert-warning" role="status">
+      Local mode: data is saved only in this browser on this PC and does not sync to other computers. Export backups regularly in Settings.
+    </div>
     <div class="alert alert-warning" id="app-error-banner" role="alert" hidden></div>
     <!-- View 1: POS Sales Terminal -->
     <section class="app-view-tab active" id="view-pos" role="tabpanel" aria-labelledby="tab-nav-pos"></section>

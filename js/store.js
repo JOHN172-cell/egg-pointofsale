@@ -4,8 +4,6 @@
  * Strictly enforces full-crates-only inventory (integers >= 1).
  */
 
-import { api } from './api.js';
-
 const STORAGE_KEYS = {
   SETTINGS: 'sylcat_pos_settings_v1',
   PRODUCTS: 'sylcat_pos_products_v1',
@@ -105,7 +103,7 @@ class Store {
     this.products = this.load(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
     this.sales = this.load(STORAGE_KEYS.SALES, []);
     this.stockLogs = this.load(STORAGE_KEYS.STOCK_LOGS, []);
-    this.activeCashier = this.load(STORAGE_KEYS.CASHIER, 'Cashier 1');
+    this.activeCashier = this.load(STORAGE_KEYS.CASHIER, this.settings.cashierName || 'Cashier 1');
     this.theme = this.load(STORAGE_KEYS.THEME, 'auto');
 
     // If first time initializing, create initial stock log entries
@@ -232,14 +230,12 @@ class Store {
   }
 
   updateSettings(newSettings) {
-    return this.updateSettingsShared(newSettings);
-  }
-
-  async updateSettingsShared(newSettings) {
-    const settings = { ...this.settings, ...newSettings };
-    const result = await api.put('/api/pos/settings', settings);
-    Object.assign(settings, result.settings);
-    this.settings = settings;
+    this.settings = { ...this.settings, ...newSettings };
+    if (newSettings.cashierName !== undefined) {
+      this.activeCashier = newSettings.cashierName || 'Cashier 1';
+      this.save(STORAGE_KEYS.CASHIER, this.activeCashier);
+    }
+    this.save(STORAGE_KEYS.SETTINGS, this.settings);
     this.notify('SETTINGS_UPDATED', this.settings);
   }
 
@@ -256,10 +252,6 @@ class Store {
   }
 
   updateProduct(id, updates) {
-    return this.updateProductShared(id, updates);
-  }
-
-  async updateProductShared(id, updates) {
     const idx = this.products.findIndex(p => p.id === id);
     if (idx === -1) return false;
 
@@ -278,17 +270,13 @@ class Store {
     }
 
     const product = { ...this.products[idx], ...updates };
-    await api.patch('/api/pos/products', { ...product, id });
-    await this.refreshSharedData(false);
+    this.products[idx] = product;
+    this.save(STORAGE_KEYS.PRODUCTS, this.products);
     this.notify('PRODUCTS_UPDATED', this.products);
     return true;
   }
 
   addProduct(productData) {
-    return this.addProductShared(productData);
-  }
-
-  async addProductShared(productData) {
     const id = 'prod-' + Date.now();
     const newProd = {
       id,
@@ -303,9 +291,23 @@ class Store {
       description: productData.description || `Fresh ${productData.sizeLabel} egg crates (30 eggs/crate)`
     };
 
-    await api.post('/api/pos/products', newProd);
-    await this.refreshSharedData(false);
-
+    this.products.push(newProd);
+    this.save(STORAGE_KEYS.PRODUCTS, this.products);
+    if (newProd.stock > 0) {
+      this.stockLogs.unshift({
+        id: `log-${Date.now()}-${id}`,
+        timestamp: new Date().toISOString(),
+        productId: id,
+        productName: newProd.name,
+        type: 'INITIAL_STOCK',
+        cratesChanged: newProd.stock,
+        previousStock: 0,
+        newStock: newProd.stock,
+        reason: 'Initial product stock',
+        cashier: this.activeCashier
+      });
+      this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
+    }
     this.notify('PRODUCTS_UPDATED', this.products);
     return newProd;
   }
@@ -359,23 +361,30 @@ class Store {
   }
 
   logStockMovement(entry) {
-    return this.logStockMovementShared(entry);
-  }
-
-  async logStockMovementShared(entry) {
     const { previousStock, newStock } = entry;
     const delta = newStock - previousStock;
     if (!delta) return;
-    await api.post('/api/pos/stock', {
-      productId: entry.productId,
-      delta,
+    const product = this.getProductById(entry.productId);
+    if (!product || newStock < 0) throw new Error('Invalid stock movement.');
+    product.stock = newStock;
+    this.stockLogs.unshift({
+      id: `log-${Date.now()}-${product.id}`,
+      timestamp: new Date().toISOString(),
+      productId: product.id,
+      productName: product.name,
+      type: entry.type,
+      cratesChanged: delta,
+      previousStock,
+      newStock,
       reason: entry.reason,
-      type: entry.type
+      cashier: this.activeCashier
     });
-    await this.refreshSharedData();
+    this.persistInventory();
+    this.notify('STOCK_UPDATED', null);
+    this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
   }
 
-  async recordStockChange({ productId, quantity, isTarget, type, reason }) {
+  recordStockChange({ productId, quantity, isTarget, type, reason }) {
     const product = this.getProductById(productId);
     if (!product) throw new Error('Product not found');
     const previousStock = product.stock;
@@ -383,11 +392,30 @@ class Store {
     if (newStock < 0) throw new Error('Stock cannot be negative');
     const difference = newStock - previousStock;
     if (difference === 0) return { previousStock, newStock, difference };
-    await api.post('/api/pos/stock', { productId, delta: difference, reason, type });
-    await this.refreshSharedData();
+    product.stock = newStock;
+    this.stockLogs.unshift({
+      id: `log-${Date.now()}-${productId}`,
+      timestamp: new Date().toISOString(),
+      productId,
+      productName: product.name,
+      type,
+      cratesChanged: difference,
+      previousStock,
+      newStock,
+      reason,
+      cashier: this.activeCashier
+    });
+    this.persistInventory();
+    this.notify('STOCK_UPDATED', null);
+    this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
     return {
       previousStock, newStock, difference
     };
+  }
+
+  persistInventory() {
+    this.save(STORAGE_KEYS.PRODUCTS, this.products);
+    this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
   }
 
   getStockLogs(productId = null) {
@@ -411,35 +439,75 @@ class Store {
       }
     }
 
-    const saleForDatabase = {
+    const items = saleData.items.map(item => {
+      const product = this.getProductById(item.productId);
+      if (!product || product.stock < item.crates) {
+        throw new Error(`Not enough stock for ${product?.name || item.name}.`);
+      }
+      const unitPrice = saleData.priceType === 'wholesale' ? product.wholesalePrice : product.retailPrice;
+      return {
+        productId: product.id,
+        name: product.name,
+        sizeLabel: product.sizeLabel,
+        crates: item.crates,
+        unitPrice,
+        lineTotal: Math.round(unitPrice * item.crates * 100) / 100
+      };
+    });
+    const totalCrates = items.reduce((sum, item) => sum + item.crates, 0);
+    const subtotal = Math.round(items.reduce((sum, item) => sum + item.lineTotal, 0) * 100) / 100;
+    const discountPercent = totalCrates >= this.settings.bulkDiscountThreshold
+      ? Number(this.settings.bulkDiscountPercent) || 0 : 0;
+    const discountAmount = Math.round(subtotal * discountPercent) / 100;
+    const grandTotal = Math.round((subtotal - discountAmount) * 100) / 100;
+    const paymentDetails = saleData.paymentDetails || {};
+    const amountPaid = Math.min(grandTotal, Math.max(0, Number(paymentDetails.amountPaid) || 0));
+    const balanceDue = Math.max(0, Math.round((grandTotal - amountPaid) * 100) / 100);
+    if (balanceDue > 0 && !(saleData.customerName || '').trim()) {
+      throw new Error('Customer name is required when a balance is due.');
+    }
+    const timestamp = new Date().toISOString();
+    const dayPrefix = timestamp.slice(0, 10).replaceAll('-', '');
+    const dayCount = this.sales.filter(sale => sale.timestamp?.startsWith(timestamp.slice(0, 10))).length + 1;
+    const completedSale = {
+      id: crypto.randomUUID(),
+      saleNumber: `SF-${dayPrefix}-${String(dayCount).padStart(3, '0')}`,
+      timestamp,
+      cashier: this.activeCashier,
       customerName: (saleData.customerName || '').trim(),
       customerPhone: (saleData.customerPhone || '').trim(),
-      idempotencyKey: saleData.idempotencyKey,
-      priceType: saleData.priceType, // 'retail' or 'wholesale'
-      items: saleData.items.map(i => ({
-        productId: i.productId,
-        name: i.name,
-        sizeLabel: i.sizeLabel,
-        crates: Math.floor(Number(i.crates)),
-        unitPrice: Number(i.unitPrice),
-        lineTotal: Number(i.lineTotal)
-      })),
-      totalCrates: saleData.totalCrates,
-      subtotal: saleData.subtotal,
-      discountPercent: saleData.discountPercent || 0,
-      discountAmount: saleData.discountAmount || 0,
-      grandTotal: saleData.grandTotal,
-      paymentMethod: saleData.paymentMethod, // 'cash', 'momo', 'card', 'credit', 'split'
-      paymentDetails: saleData.paymentDetails || {},
-      status: 'COMPLETED'
+      priceType: saleData.priceType,
+      items,
+      totalCrates,
+      subtotal,
+      discountPercent,
+      discountAmount,
+      grandTotal,
+      paymentMethod: saleData.paymentMethod,
+      paymentDetails: { ...paymentDetails, amountPaid, balanceDue },
+      status: balanceDue > 0 ? 'COMPLETED' : 'PAID'
     };
-
-    return this.recordSaleShared(saleForDatabase);
-  }
-
-  async recordSaleShared(saleData) {
-    const { sale: completedSale } = await api.post('/api/pos/sales', saleData);
-    await this.refreshSharedData(false);
+    for (const item of items) {
+      const product = this.getProductById(item.productId);
+      const previousStock = product.stock;
+      product.stock -= item.crates;
+      this.stockLogs.unshift({
+        id: `log-${Date.now()}-${item.productId}`,
+        timestamp,
+        productId: item.productId,
+        productName: product.name,
+        type: 'SALE',
+        cratesChanged: -item.crates,
+        previousStock,
+        newStock: product.stock,
+        reason: `Sale ${completedSale.saleNumber}`,
+        refId: completedSale.saleNumber,
+        cashier: this.activeCashier
+      });
+    }
+    this.sales.unshift(completedSale);
+    this.persistInventory();
+    this.save(STORAGE_KEYS.SALES, this.sales);
     this.notify('PRODUCTS_UPDATED', this.products);
     this.notify('STOCK_UPDATED', null);
     this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
@@ -508,7 +576,7 @@ class Store {
   }
 
   getSaleBalanceDue(sale) {
-    if (sale.status === 'PAID') return 0;
+    if (['PAID', 'VOIDED', 'REFUNDED'].includes(sale.status)) return 0;
     const balanceDue = Number(sale.paymentDetails?.balanceDue);
     if (Number.isFinite(balanceDue)) return Math.max(0, balanceDue);
 
@@ -520,69 +588,112 @@ class Store {
    * Marks an outstanding sale as PAID (settled).
    */
   markCreditPaid(saleNumber) {
-    return this.markCreditPaidShared(saleNumber);
-  }
-
-  async markCreditPaidShared(saleNumber) {
     const sale = this.getSaleByNumber(saleNumber);
     if (!sale) return false;
-    await api.post('/api/pos/debt-payment', {
-      saleId: sale.id,
-      amount: this.getSaleBalanceDue(sale),
-      method: 'cash'
-    });
-    await this.refreshSharedData();
+    sale.status = 'PAID';
+    sale.paymentDetails = {
+      ...sale.paymentDetails,
+      amountPaid: sale.grandTotal,
+      balanceDue: 0,
+      debtCollectedAt: new Date().toISOString()
+    };
+    this.save(STORAGE_KEYS.SALES, this.sales);
+    this.notify('SALE_RECORDED', sale);
     return true;
   }
 
-  async refundSale(sale, amount, reason, isVoid = false, returnItems = []) {
+  refundSale(sale, amount, reason, isVoid = false, returnItems = []) {
+    const storedSale = this.getSaleByNumber(sale.saleNumber);
+    if (!storedSale) throw new Error('Sale not found.');
+    const alreadyRefunded = Number(storedSale.refundedAmount) || 0;
+    const remainingRefundable = Math.max(0, storedSale.grandTotal - alreadyRefunded);
+    const refundAmount = isVoid ? remainingRefundable : Number(amount);
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0
+      || refundAmount > remainingRefundable) {
+      throw new Error('Refund amount must be positive and cannot exceed the remaining sale amount.');
+    }
+    if (!reason?.trim()) throw new Error('A refund reason is required.');
     if (isVoid) {
       const cratesByProduct = new Map();
-      sale.items.forEach(item => cratesByProduct.set(item.productId,
-        (cratesByProduct.get(item.productId) || 0) + item.crates));
+      storedSale.items.forEach(item => cratesByProduct.set(item.productId,
+        (cratesByProduct.get(item.productId) || 0) + item.crates - (item.cratesReturned || 0)));
       returnItems = [...cratesByProduct].map(([productId, crates]) => ({ productId, crates }));
     }
-    await api.post('/api/pos/refund', {
-      saleId: sale.id,
-      amount,
-      reason,
-      returnItems,
-      void: isVoid
-    });
-    await this.refreshSharedData();
-  }
-
-  async connectToSharedDatabase() {
-    await this.refreshSharedData(false);
-    return true;
-  }
-
-  async refreshSharedData(notify = true) {
-    const snapshot = await api.get('/api/pos');
-    this.settings = snapshot.settings;
-    this.products = snapshot.products;
-    this.sales = snapshot.sales;
-    this.stockLogs = snapshot.stockLogs;
-    if (snapshot.user) {
-      this.currentUser = snapshot.user;
-      this.activeCashier = snapshot.user.name;
+    const collectedAmount = Number(storedSale.paymentDetails?.amountPaid);
+    const refundableCollected = Number.isFinite(collectedAmount) ? collectedAmount : storedSale.grandTotal;
+    if (!isVoid && refundAmount > Math.max(0, refundableCollected - alreadyRefunded)) {
+      throw new Error('A refund cannot exceed the amount already collected for this sale.');
     }
-    if (notify) this.notify('REMOTE_STATE_UPDATED', null);
-    return snapshot.user;
-  }
-
-  subscribeToSharedChanges() {
-    return window.setInterval(() => this.handleRemoteChange(), 15000);
-  }
-
-  async handleRemoteChange() {
-    try {
-      await this.refreshSharedData();
-    } catch (error) {
-      console.error('Unable to refresh shared POS data:', error);
-      this.notify(error.status === 401 ? 'AUTH_EXPIRED' : 'SYNC_ERROR',
-        'Could not refresh shared POS data. Check your connection and sign in again if needed.');
+    for (const returned of returnItems) {
+      const saleItem = storedSale.items.find(item => item.productId === returned.productId);
+      const previouslyReturned = storedSale.items
+        .filter(item => item.productId === returned.productId)
+        .reduce((sum, item) => sum + (item.cratesReturned || 0), 0);
+      const quantity = Number(returned.crates);
+      if (!saleItem || !Number.isInteger(quantity) || quantity < 0
+        || quantity + previouslyReturned > storedSale.items
+          .filter(item => item.productId === returned.productId)
+          .reduce((sum, item) => sum + item.crates, 0)) {
+        throw new Error('Returned crate quantities must be whole crates within the sale quantity.');
+      }
+      if (quantity > 0 && !this.getProductById(returned.productId)) {
+        throw new Error('A returned product no longer exists in inventory.');
+      }
     }
+    const timestamp = new Date().toISOString();
+    for (const returned of returnItems) {
+      if (returned.crates === 0) continue;
+      const product = this.getProductById(returned.productId);
+      const previousStock = product.stock;
+      product.stock += returned.crates;
+      const saleItems = storedSale.items.filter(item => item.productId === returned.productId);
+      let remaining = returned.crates;
+      for (const item of saleItems) {
+        const available = item.crates - (item.cratesReturned || 0);
+        const applied = Math.min(available, remaining);
+        item.cratesReturned = (item.cratesReturned || 0) + applied;
+        remaining -= applied;
+        if (!remaining) break;
+      }
+      this.stockLogs.unshift({
+        id: `log-${Date.now()}-${returned.productId}`,
+        timestamp,
+        productId: product.id,
+        productName: product.name,
+        type: 'REFUND',
+        cratesChanged: returned.crates,
+        previousStock,
+        newStock: product.stock,
+        reason: reason.trim(),
+        refId: storedSale.saleNumber,
+        cashier: this.activeCashier
+      });
+    }
+    storedSale.refundedAmount = alreadyRefunded + refundAmount;
+    storedSale.netTotal = Math.max(0, storedSale.grandTotal - storedSale.refundedAmount);
+    storedSale.netCrates = storedSale.items.reduce((sum, item) =>
+      sum + item.crates - (item.cratesReturned || 0), 0);
+    storedSale.refundReason = reason.trim();
+    if (isVoid) {
+      storedSale.status = 'VOIDED';
+      storedSale.paymentDetails.balanceDue = 0;
+    } else {
+      storedSale.status = storedSale.refundedAmount >= storedSale.grandTotal ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+    }
+    this.persistInventory();
+    this.save(STORAGE_KEYS.SALES, this.sales);
+    this.notify('PRODUCTS_UPDATED', this.products);
+    this.notify('STOCK_UPDATED', null);
+    this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
+    this.notify('SALE_RECORDED', storedSale);
+  }
+
+  getLocalUser() {
+    return {
+      id: 'local-user',
+      name: this.activeCashier || this.settings.cashierName || 'Cashier 1',
+      role: 'admin'
+    };
   }
 
   // Theme
@@ -610,18 +721,6 @@ class Store {
     }
   }
 
-  async migrateLocalData() {
-    const backup = {
-      settings: this.load(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS),
-      products: this.load(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS),
-      sales: this.load(STORAGE_KEYS.SALES, []),
-      stockLogs: this.load(STORAGE_KEYS.STOCK_LOGS, [])
-    };
-    const result = await api.post('/api/migrate-local', backup);
-    await this.refreshSharedData(false);
-    this.notify('REMOTE_STATE_UPDATED', null);
-    return result;
-  }
 }
 
 export const store = new Store();

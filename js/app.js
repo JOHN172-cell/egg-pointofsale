@@ -11,7 +11,6 @@ import { StockController } from './stock.js';
 import { ProductsController } from './products.js';
 import { ReportsController } from './reports.js';
 import { SettingsController } from './settings.js';
-import { currentSession, login, logout } from './api.js';
 
 class App {
   constructor() {
@@ -24,74 +23,11 @@ class App {
     this.initialized = false;
     this.enteringApp = null;
     this.user = null;
-    this.activityTimeout = null;
-    this.refreshTimer = null;
   }
 
   async start() {
-    this.bindAuthentication();
     store.applyTheme(store.getTheme());
-    try {
-      const user = await currentSession();
-      if (user) await this.enterApp(user);
-    } catch (error) {
-      if (error.status !== 401) {
-        this.showLoginError(error.message || 'Unable to connect. Check your internet connection and try again.');
-      }
-    }
-  }
-
-  bindAuthentication() {
-    const form = document.getElementById('login-form');
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const errorBox = document.getElementById('login-error');
-      const button = form.querySelector('button[type="submit"]');
-      errorBox.hidden = true;
-      button.disabled = true;
-      try {
-        const user = await login(
-          document.getElementById('login-email').value.trim(),
-          document.getElementById('login-password').value
-        );
-        document.getElementById('login-password').value = '';
-        await this.enterApp(user);
-      } catch (error) {
-        this.showLoginError(error.message || 'Sign in failed. Please try again.');
-      } finally {
-        button.disabled = false;
-      }
-    });
-    document.getElementById('btn-logout').addEventListener('click', () => this.signOut());
-    ['pointerdown', 'keydown', 'touchstart'].forEach(eventName => {
-      window.addEventListener(eventName, () => {
-        if (this.user) this.resetActivityTimeout();
-      }, { passive: true });
-    });
-  }
-
-  showLoginError(message) {
-    const errorBox = document.getElementById('login-error');
-    errorBox.textContent = message;
-    errorBox.hidden = false;
-  }
-
-  resetActivityTimeout() {
-    window.clearTimeout(this.activityTimeout);
-    this.activityTimeout = window.setTimeout(() => this.signOut(true), 30 * 60 * 1000);
-  }
-
-  async signOut(expired = false) {
-    window.clearTimeout(this.activityTimeout);
-    window.clearInterval(this.refreshTimer);
-    this.user = null;
-    document.documentElement.removeAttribute('data-role');
-    document.getElementById('app-shell').hidden = true;
-    document.getElementById('auth-screen').hidden = false;
-    if (expired) this.showLoginError('You were signed out after 30 minutes of inactivity. Please sign in again.');
-    try { await logout(); } catch (error) {
-      console.error('Server sign out failed:', error);
-    }
+    await this.enterApp(store.getLocalUser());
   }
 
   showAppError(message) {
@@ -102,10 +38,7 @@ class App {
 
   async enterApp(user) {
     if (user) this.user = user;
-    if (this.initialized) {
-      this.resetActivityTimeout();
-      return;
-    }
+    if (this.initialized) return;
     if (this.enteringApp) return this.enteringApp;
     this.enteringApp = this.initializeApp();
     try {
@@ -116,14 +49,10 @@ class App {
   }
 
   async initializeApp() {
-    const user = await store.refreshSharedData(false);
-    if (!this.user) this.user = user;
-    document.getElementById('auth-screen').hidden = true;
-    document.getElementById('app-shell').hidden = false;
-    document.documentElement.dataset.role = this.user.role;
+    if (!this.user) this.user = store.getLocalUser();
+    document.documentElement.dataset.role = 'admin';
     document.getElementById('staff-identity').textContent =
-      `${this.user.name} · ${this.user.role}`;
-    this.resetActivityTimeout();
+      `Local mode · ${this.user.name}`;
     this.initialized = true;
     store.applyTheme(store.getTheme());
 
@@ -157,12 +86,11 @@ class App {
       if (['STOCK_UPDATED', 'SALE_RECORDED', 'SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.updateHeaderStats();
       }
-      if (event === 'SYNC_ERROR') this.showAppError('Live shared-data updates were interrupted. Reload the page to reconnect.');
-      if (event === 'AUTH_EXPIRED') this.signOut(true);
-      if (event === 'REMOTE_STATE_UPDATED') this.showAppError('');
+      if (event === 'SETTINGS_UPDATED') {
+        this.user = store.getLocalUser();
+        document.getElementById('staff-identity').textContent = `Local mode · ${this.user.name}`;
+      }
     });
-    this.refreshTimer = store.subscribeToSharedChanges();
-
     // Listen to system dark mode change
     if (window.matchMedia) {
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

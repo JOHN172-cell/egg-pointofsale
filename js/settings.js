@@ -5,7 +5,6 @@
  */
 
 import { store } from './store.js';
-import { api } from './api.js';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -23,7 +22,7 @@ export class SettingsController {
     this.render();
 
     store.subscribe((event) => {
-      if (['SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
+      if (event === 'SETTINGS_UPDATED') {
         this.render();
       }
     });
@@ -121,61 +120,16 @@ export class SettingsController {
 
             <hr class="my-4">
 
-            <!-- Data Management -->
+            <!-- Local Data Management -->
             <div class="settings-card-header">
-              <h3>💾 Data Backup & Migration</h3>
+              <h3>💾 Local Data & Backup</h3>
             </div>
-            <p class="form-hint">Export downloads a copy. Migration imports data only when the normalized shared database has no products or sales. It never clears existing local or shared records.</p>
+            <p class="form-hint">Products, stock, sales, and reports are saved only in this browser. They are not shared or synced to other computers. Export a backup regularly and keep it somewhere safe.</p>
             <div class="settings-backup-buttons">
               <button type="button" class="btn btn-secondary" id="btn-export-backup">
                 <span>📥 Export Data (JSON)</span>
               </button>
-              <button type="button" class="btn btn-secondary" id="btn-migrate-local">
-                <span>📤 Migrate This Browser's Local Data</span>
-              </button>
-              <button type="button" class="btn btn-secondary" id="btn-migrate-legacy">
-                <span>📤 Migrate Older Shared Database</span>
-              </button>
             </div>
-
-            <hr class="my-4">
-
-            <div class="settings-card-header">
-              <h3>👥 Staff Accounts</h3>
-              <p>Only administrators can create accounts. Managers can view the staff list and manage cashier access.</p>
-            </div>
-            <div class="form-row">
-              <div class="form-group form-col">
-                <label for="staff-name" class="form-label">Staff Name</label>
-                <input type="text" id="staff-name" class="form-control" autocomplete="name">
-              </div>
-              <div class="form-group form-col">
-                <label for="staff-email" class="form-label">Email</label>
-                <input type="email" id="staff-email" class="form-control" autocomplete="email">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group form-col">
-                <label for="staff-password" class="form-label">Temporary Password (12+ characters)</label>
-                <input type="password" id="staff-password" class="form-control" autocomplete="new-password" minlength="12">
-              </div>
-              <div class="form-group form-col">
-                <label for="staff-role" class="form-label">Role</label>
-                <select id="staff-role" class="form-control">
-                  <option value="cashier">Cashier</option>
-                  <option value="manager">Manager</option>
-                </select>
-              </div>
-            </div>
-            <button type="button" class="btn btn-secondary" id="btn-create-staff">Create Staff Account</button>
-            <div id="staff-account-list" class="staff-account-list" aria-live="polite"></div>
-
-            <hr class="my-4">
-            <div class="settings-card-header">
-              <h3>🧾 Administrative Audit Log</h3>
-              <p>Price, stock, settings, sale, refund and staff-account actions.</p>
-            </div>
-            <div id="audit-log-list" class="audit-log-list" aria-live="polite">Loading audit history…</div>
           </div>
         </form>
       </div>
@@ -237,104 +191,5 @@ export class SettingsController {
       });
     }
 
-    const migrateButton = this.container.querySelector('#btn-migrate-local');
-    if (migrateButton) {
-      migrateButton.addEventListener('click', async () => {
-        if (!confirm('Migrate this browser’s saved POS data into the shared database? The migration will stop without changing either copy if shared products or sales already exist.')) return;
-        try {
-          const result = await store.migrateLocalData();
-          alert(result.message);
-        } catch (error) {
-          alert(error.message || 'Unable to migrate local data');
-        }
-        const legacyButton = this.container.querySelector('#btn-migrate-legacy');
-        if (legacyButton) {
-          if (document.documentElement.dataset.role !== 'admin') {
-            legacyButton.hidden = true;
-          } else {
-            legacyButton.addEventListener('click', async () => {
-              if (!confirm('Import the previous POS data tables into the new secure tables? The shared database must not yet contain normalized products or sales. Legacy rows will be retained, not deleted.')) return;
-              try {
-                const result = await api.post('/api/migrate-legacy', {});
-                await store.refreshSharedData();
-                alert(result.message);
-              } catch (error) {
-                alert(error.message || 'Unable to migrate the older shared database');
-              }
-            });
-          }
-        }
-      });
-    }
-
-    this.bindStaffManagement();
-    this.bindAuditLog();
-  }
-
-  async bindAuditLog() {
-    const list = this.container.querySelector('#audit-log-list');
-    if (!list) return;
-    try {
-      const { entries } = await api.get('/api/audit');
-      list.innerHTML = entries.length ? entries.map(entry => `
-        <div class="audit-log-row">
-          <time>${escapeHtml(new Date(entry.created_at).toLocaleString())}</time>
-          <strong>${escapeHtml(entry.action)}</strong>
-          <span>${escapeHtml(entry.actor?.display_name || 'Staff')} · ${escapeHtml(entry.entity_type)} ${escapeHtml(entry.entity_id)}</span>
-        </div>`).join('') : '<p>No administrative changes recorded.</p>';
-    } catch (error) {
-      list.textContent = error.message || 'Unable to load the audit log.';
-    }
-  }
-
-  async bindStaffManagement() {
-    const list = this.container.querySelector('#staff-account-list');
-    const createButton = this.container.querySelector('#btn-create-staff');
-    const role = document.documentElement.dataset.role;
-    if (role === 'cashier') {
-      this.container.querySelectorAll('#staff-name,#staff-email,#staff-password,#staff-role,#btn-create-staff')
-        .forEach(element => element.closest('.form-group')?.setAttribute('hidden', ''));
-      return;
-    }
-    if (role === 'manager') {
-      const roleSelect = this.container.querySelector('#staff-role');
-      roleSelect.innerHTML = '<option value="cashier">Cashier</option>';
-      createButton.hidden = true;
-      this.container.querySelector('#staff-password').closest('.form-group').hidden = true;
-      this.container.querySelector('#staff-role').closest('.form-group').hidden = true;
-    }
-    const loadStaff = async () => {
-      const result = await api.get('/api/users');
-      list.innerHTML = result.users.map(staff => `
-        <div class="staff-account-row">
-          <span><strong>${escapeHtml(staff.display_name)}</strong> · ${escapeHtml(staff.role)}${staff.active ? '' : ' · Deactivated'}</span>
-          ${staff.role !== 'admin' ? `<button type="button" class="btn btn-sm btn-secondary" data-staff-id="${escapeHtml(staff.id)}" data-active="${staff.active}">${staff.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}
-        </div>`).join('');
-      list.querySelectorAll('[data-staff-id]').forEach(button => button.addEventListener('click', async () => {
-        try {
-          await api.patch('/api/users', { id: button.dataset.staffId, active: button.dataset.active !== 'true' });
-          await loadStaff();
-        } catch (error) { alert(error.message); }
-      }));
-    };
-    try {
-      await loadStaff();
-    } catch (error) {
-      list.textContent = error.message;
-    }
-    createButton.addEventListener('click', async () => {
-      const body = {
-        displayName: this.container.querySelector('#staff-name').value.trim(),
-        email: this.container.querySelector('#staff-email').value.trim(),
-        password: this.container.querySelector('#staff-password').value,
-        role: this.container.querySelector('#staff-role').value
-      };
-      try {
-        await api.post('/api/users', body);
-        this.container.querySelector('#staff-password').value = '';
-        await loadStaff();
-        alert('Staff account created. Share the credentials with the staff member securely.');
-      } catch (error) { alert(error.message); }
-    });
   }
 }
