@@ -51,6 +51,7 @@ export class ReceiptModal {
 
   generatePlainTextReceipt(sale, settings) {
     const sym = settings.currencySymbol || 'GH₵';
+    const balanceDue = store.getSaleBalanceDue(sale);
     let lines = [];
     lines.push('================================');
     lines.push(`       ${settings.businessName.toUpperCase()}`);
@@ -100,11 +101,14 @@ export class ReceiptModal {
         lines.push(`Network:        ${p.network}`);
         if (p.reference) lines.push(`Ref:            ${p.reference}`);
       } else if (p.method === 'Pay Later (Credit)') {
-        lines.push(`Balance Due:    ${sym} ${Number(p.balanceDue).toFixed(2)}`);
         if (p.dueDate) lines.push(`Due Date:       ${p.dueDate}`);
       } else if (p.method === 'Split Payment') {
         lines.push(`Part 1:         ${p.split1.method} (${sym} ${p.split1.amount.toFixed(2)})`);
         lines.push(`Part 2:         ${p.split2.method} (${sym} ${p.split2.amount.toFixed(2)})`);
+      }
+      if (balanceDue > 0) {
+        lines.push(`Amount Paid:    ${sym} ${(sale.grandTotal - balanceDue).toFixed(2)}`);
+        lines.push(`Balance Due:    ${sym} ${balanceDue.toFixed(2)}`);
       }
     }
 
@@ -151,6 +155,7 @@ export class ReceiptModal {
 
     const settings = store.getSettings();
     const currency = settings.currencySymbol || 'GH₵';
+    const balanceDue = store.getSaleBalanceDue(sale);
     const modalBody = this.modal.querySelector('.modal-body');
     const isA4 = this.printFormat === 'a4';
 
@@ -324,10 +329,21 @@ export class ReceiptModal {
                   <span>Amount Tendered:</span>
                   <span>${formatMoney(sale.paymentDetails.amountTendered)}</span>
                 </div>
-                <div class="payment-detail-row highlight-change">
+                ${balanceDue > 0 ? `
+                  <div class="payment-detail-row">
+                    <span>Amount Paid:</span>
+                    <span>${formatMoney(sale.grandTotal - balanceDue)}</span>
+                  </div>
+                  <div class="payment-detail-row highlight-due">
+                    <span>Balance Due:</span>
+                    <span><strong>${formatMoney(balanceDue)}</strong></span>
+                  </div>
+                ` : `
+                  <div class="payment-detail-row highlight-change">
                   <span>Change Returned:</span>
                   <span><strong>${formatMoney(sale.paymentDetails.change)}</strong></span>
-                </div>
+                  </div>
+                `}
               ` : ''}
 
               ${sale.paymentDetails && sale.paymentDetails.method === 'Mobile Money' ? `
@@ -350,7 +366,11 @@ export class ReceiptModal {
               ${sale.paymentDetails && sale.paymentDetails.method === 'Pay Later (Credit)' ? `
                 <div class="payment-detail-row highlight-due">
                   <span>Outstanding Balance:</span>
-                  <span><strong>${formatMoney(sale.grandTotal)}</strong></span>
+                  <span><strong>${formatMoney(balanceDue)}</strong></span>
+                </div>
+                <div class="payment-detail-row">
+                  <span>Amount Paid:</span>
+                  <span>${formatMoney(sale.grandTotal - balanceDue)}</span>
                 </div>
                 ${sale.paymentDetails.dueDate ? `
                   <div class="payment-detail-row">
@@ -369,6 +389,16 @@ export class ReceiptModal {
                   <span>Part 2 (${sale.paymentDetails.split2.method}):</span>
                   <span>${formatMoney(sale.paymentDetails.split2.amount)}</span>
                 </div>
+                ${balanceDue > 0 ? `
+                  <div class="payment-detail-row">
+                    <span>Amount Paid:</span>
+                    <span>${formatMoney(sale.grandTotal - balanceDue)}</span>
+                  </div>
+                  <div class="payment-detail-row highlight-due">
+                    <span>Balance Due:</span>
+                    <span><strong>${formatMoney(balanceDue)}</strong></span>
+                  </div>
+                ` : ''}
               ` : ''}
             </div>
           </div>
@@ -444,7 +474,7 @@ export class ReceiptModal {
 
   /**
    * Renders a client account balance section on the receipt.
-   * Shows total outstanding debt if the client has any unpaid credit sales.
+   * Shows total outstanding debt if the client has any unpaid balances.
    */
   renderClientBalanceSection(sale) {
     // Only show if the client has a name (otherwise we can't look up debt)
@@ -455,7 +485,7 @@ export class ReceiptModal {
     const normName = clientName.toLowerCase();
     const clientData = outstandingClients.find(c => c.clientName.toLowerCase() === normName);
 
-    // If client has no outstanding credits, don't show the section
+    // If client has no outstanding balance, don't show the section
     if (!clientData || clientData.totalOwed <= 0) return '';
 
     const settings = store.getSettings();

@@ -17,15 +17,16 @@ A fast, lightweight, and modern web-based Point of Sale (POS) and inventory trac
 - **Large Touch Controls**: Optimized for touchscreens, mobile phones, tablets, and POS terminals.
 
 ### 💳 Payment & Checkout
-- **Cash**: Instant change calculation and quick denomination buttons (+50, +100, +200, +500).
+- **Cash**: Instant change calculation and quick denomination buttons; partial payments record the named client's remaining balance.
 - **Mobile Money (MoMo)**: Supports MTN MoMo, Telecel Cash, and AirtelTigo with transaction references.
 - **Card**: POS terminal slip reference recording.
 - **Pay Later (Credit)**: Allows recording credit sales with customer name, promise date, and balance due.
-- **Split Payment**: Split a single bill across two payment methods (e.g. Cash + MoMo).
+- **Split Payment**: Split a single bill across two payment methods (e.g. Cash + MoMo), or record the second part as a named client's balance due.
 
 ### 🧾 Receipts
 - **Header**: Sylcat Farms branding, phone number `022606689`, and optional farm address.
-- **Details**: Sale ID, date/time, cashier name, customer name, crate breakdown, totals, and change/balance.
+- **Details**: Sale ID, date/time, cashier name, customer name, crate breakdown, totals, amount paid, and balance due.
+- **Client balance**: Shows all unpaid invoices and the client's total outstanding balance on receipts.
 - **Actions**:
   - 🖨️ Thermal printer-ready print formatting (`@media print`).
   - 📲 Share via WhatsApp with pre-formatted message.
@@ -41,7 +42,7 @@ A fast, lightweight, and modern web-based Point of Sale (POS) and inventory trac
 - **Audit Log**: Full chronological history of every stock movement.
 
 ### 📊 Daily Sales Reports
-- **Daily Summary**: Total revenue, total crates sold, discounts given, and outstanding credit.
+- **Daily Summary**: Total revenue, total collections, total crates sold, discounts given, and all outstanding client balances.
 - **Size Breakdown**: Progress bars and percentages of crates sold per egg size.
 - **Payment Breakdown**: Total collections for Cash, MoMo, Card, Credit, and Split payments.
 - **Sales History**: Filter transactions by date and reprint receipts anytime.

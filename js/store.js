@@ -480,18 +480,14 @@ class Store {
   }
 
   /**
-   * Returns all credit ("Pay Later") sales that have NOT been marked as paid.
-   * Groups by customer name and sums outstanding amounts.
+   * Returns all sales with an unpaid balance, grouped by customer name.
    */
   getAllOutstandingCredits() {
-    const creditSales = this.sales.filter(s => {
-      const method = s.paymentDetails?.method || s.paymentMethod;
-      return method === 'Pay Later (Credit)' && s.status !== 'PAID';
-    });
-
-    // Group by customer name (normalised lowercase for matching)
     const clientMap = {};
-    creditSales.forEach(sale => {
+    this.sales.forEach(sale => {
+      const balanceDue = this.getSaleBalanceDue(sale);
+      if (balanceDue <= 0) return;
+
       const clientKey = (sale.customerName || 'Unknown Client').trim();
       const normKey = clientKey.toLowerCase();
       if (!clientMap[normKey]) {
@@ -506,11 +502,13 @@ class Store {
       if (sale.customerPhone && !clientMap[normKey].clientPhone) {
         clientMap[normKey].clientPhone = sale.customerPhone;
       }
-      clientMap[normKey].totalOwed += sale.grandTotal;
+      clientMap[normKey].totalOwed += balanceDue;
       clientMap[normKey].sales.push({
         saleNumber: sale.saleNumber,
         date: sale.timestamp,
-        amount: sale.grandTotal,
+        amount: balanceDue,
+        totalAmount: sale.grandTotal,
+        amountPaid: Math.max(0, sale.grandTotal - balanceDue),
         dueDate: sale.paymentDetails?.dueDate || null
       });
     });
@@ -525,22 +523,31 @@ class Store {
     if (!clientName || !clientName.trim()) return 0;
     const normName = clientName.trim().toLowerCase();
     return this.sales
-      .filter(s => {
-        const method = s.paymentDetails?.method || s.paymentMethod;
-        return method === 'Pay Later (Credit)'
-          && s.status !== 'PAID'
-          && (s.customerName || '').trim().toLowerCase() === normName;
-      })
-      .reduce((sum, s) => sum + s.grandTotal, 0);
+      .filter(s => (s.customerName || '').trim().toLowerCase() === normName)
+      .reduce((sum, sale) => sum + this.getSaleBalanceDue(sale), 0);
+  }
+
+  getSaleBalanceDue(sale) {
+    if (sale.status === 'PAID') return 0;
+    const balanceDue = Number(sale.paymentDetails?.balanceDue);
+    if (Number.isFinite(balanceDue)) return Math.max(0, balanceDue);
+
+    const method = sale.paymentDetails?.method || sale.paymentMethod;
+    return method === 'Pay Later (Credit)' ? sale.grandTotal : 0;
   }
 
   /**
-   * Marks a credit sale as PAID (settled).
+   * Marks an outstanding sale as PAID (settled).
    */
   markCreditPaid(saleNumber) {
     const sale = this.getSaleByNumber(saleNumber);
     if (!sale) return false;
     sale.status = 'PAID';
+    sale.paymentDetails = {
+      ...sale.paymentDetails,
+      amountPaid: sale.grandTotal,
+      balanceDue: 0
+    };
     sale.paidTimestamp = new Date().toISOString();
     this.save(STORAGE_KEYS.SALES, this.sales);
     this.notify('SALE_RECORDED', sale); // re-use event to trigger re-render

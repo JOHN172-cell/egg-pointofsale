@@ -154,7 +154,7 @@ export class PaymentModal {
                 id="cash-tendered-input" 
                 class="form-control form-control-lg cash-input" 
                 value="${this.amountTendered}" 
-                min="${total}" 
+                min="0" 
                 step="any">
             </div>
           </div>
@@ -178,6 +178,12 @@ export class PaymentModal {
             <div class="change-status-tag">
               ${underpaid ? '<span class="status-badge status-out">Underpaid</span>' : '<span class="status-badge status-ok">Sufficient Cash</span>'}
             </div>
+          </div>
+          <div class="form-group cash-customer-field" id="cash-customer-wrap" ${underpaid ? '' : 'hidden'}>
+            <label for="cash-customer-name" class="form-label">Customer Name <span class="required-star">*</span></label>
+            <input type="text" id="cash-customer-name" class="form-control"
+              placeholder="Full Customer or Business Name"
+              value="${this.currentSaleData.customerName || ''}" ${underpaid ? 'required' : ''}>
           </div>
         </div>
       `;
@@ -272,6 +278,12 @@ export class PaymentModal {
       return `
         <div class="pay-panel-split">
           <p class="split-instruction">Divide the total payment of <strong>${formatMoney(total)}</strong> across two payment methods.</p>
+          ${this.splitMethod2 === 'credit' ? `
+            <div class="alert alert-warning">
+              <span class="alert-icon">⚠️</span>
+              <span>Part 2 is the amount the named customer will still owe.</span>
+            </div>
+          ` : ''}
 
           <!-- Split Part 1 -->
           <div class="split-row-box">
@@ -310,6 +322,14 @@ export class PaymentModal {
             <span>Total Combined: <strong>${formatMoney(Number(this.splitAmount1) + Number(this.splitAmount2))}</strong></span>
             <span>Difference: <strong>${formatMoney(total - (Number(this.splitAmount1) + Number(this.splitAmount2)))}</strong></span>
           </div>
+          ${this.splitMethod2 === 'credit' ? `
+            <div class="form-group">
+              <label for="split-credit-customer-name" class="form-label">Customer Name <span class="required-star">*</span></label>
+              <input type="text" id="split-credit-customer-name" class="form-control"
+                placeholder="Full Customer or Business Name"
+                value="${this.currentSaleData.customerName || ''}" required>
+            </div>
+          ` : ''}
         </div>
       `;
     }
@@ -382,7 +402,10 @@ export class PaymentModal {
       const splitM1 = this.modal.querySelector('#split-method-1');
       if (splitM1) splitM1.addEventListener('change', (e) => this.splitMethod1 = e.target.value);
       const splitM2 = this.modal.querySelector('#split-method-2');
-      if (splitM2) splitM2.addEventListener('change', (e) => this.splitMethod2 = e.target.value);
+      if (splitM2) splitM2.addEventListener('change', (e) => {
+        this.splitMethod2 = e.target.value;
+        this.render();
+      });
     }
 
     // Cancel Button
@@ -410,6 +433,12 @@ export class PaymentModal {
     changeBox.querySelector('.change-label').textContent = underpaid ? 'Amount Short (Remaining Due)' : 'Change to Customer';
     changeBox.querySelector('.change-amount').textContent = underpaid ? formatMoney(total - this.amountTendered) : formatMoney(this.amountTendered - total);
     changeBox.querySelector('.change-status-tag').innerHTML = underpaid ? '<span class="status-badge status-out">Underpaid</span>' : '<span class="status-badge status-ok">Sufficient Cash</span>';
+    const customerField = this.modal.querySelector('#cash-customer-wrap');
+    const customerName = this.modal.querySelector('#cash-customer-name');
+    if (customerField && customerName) {
+      customerField.hidden = !underpaid;
+      customerName.required = underpaid;
+    }
   }
 
   showError(msg) {
@@ -428,16 +457,21 @@ export class PaymentModal {
 
     // Validate based on active payment method
     if (this.activeMethod === 'cash') {
-      if (this.amountTendered < total) {
-        this.showError(`Amount tendered (${this.amountTendered}) is less than total due (${total}).`);
-        return;
+      const balanceDue = Math.round(Math.max(0, total - this.amountTendered) * 100) / 100;
+      if (balanceDue > 0) {
+        const customerInput = this.modal.querySelector('#cash-customer-name');
+        customerName = customerInput ? customerInput.value.trim() : '';
+        if (!customerName) {
+          this.showError('Customer Name is required when a balance is due.');
+          return;
+        }
       }
       paymentDetails = {
         method: 'Cash',
         amountTendered: this.amountTendered,
-        change: Math.round((this.amountTendered - total) * 100) / 100,
-        amountPaid: total,
-        balanceDue: 0
+        change: Math.round(Math.max(0, this.amountTendered - total) * 100) / 100,
+        amountPaid: Math.min(total, this.amountTendered),
+        balanceDue
       };
     } else if (this.activeMethod === 'momo') {
       paymentDetails = {
@@ -479,12 +513,26 @@ export class PaymentModal {
         this.showError(`Split amounts sum to ${sum}, which is less than total ${total}.`);
         return;
       }
+      if (this.splitMethod2 === 'credit') {
+        if (sum !== Math.round(total * 100) / 100) {
+          this.showError('For a split credit sale, the two amounts must add up exactly to the total.');
+          return;
+        }
+        const creditCust = this.modal.querySelector('#split-credit-customer-name');
+        const custVal = creditCust ? creditCust.value.trim() : '';
+        if (!custVal) {
+          this.showError('Customer Name is required when a split payment leaves a balance due.');
+          return;
+        }
+        customerName = custVal;
+      }
+      const balanceDue = this.splitMethod2 === 'credit' ? Number(this.splitAmount2) : 0;
       paymentDetails = {
         method: 'Split Payment',
         split1: { method: this.splitMethod1, amount: Number(this.splitAmount1) },
         split2: { method: this.splitMethod2, amount: Number(this.splitAmount2) },
-        amountPaid: total,
-        balanceDue: 0
+        amountPaid: Math.max(0, total - balanceDue),
+        balanceDue
       };
     }
 

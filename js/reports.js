@@ -34,6 +34,7 @@ export class ReportsController {
 
     // Compute metrics
     let totalRevenue = 0;
+    let totalCollected = 0;
     let totalCratesSold = 0;
     let totalDiscountGiven = 0;
     const cratesBySize = {};
@@ -66,10 +67,14 @@ export class ReportsController {
 
       // Payment breakdown
       const method = sale.paymentDetails?.method || sale.paymentMethod;
+      const amountPaid = Number.isFinite(Number(sale.paymentDetails?.amountPaid))
+        ? Number(sale.paymentDetails.amountPaid)
+        : (method === 'Pay Later (Credit)' ? 0 : sale.grandTotal);
+      totalCollected += amountPaid;
       if (paymentTotals[method] !== undefined) {
-        paymentTotals[method] += sale.grandTotal;
+        paymentTotals[method] += amountPaid;
       } else {
-        paymentTotals[method] = (paymentTotals[method] || 0) + sale.grandTotal;
+        paymentTotals[method] = (paymentTotals[method] || 0) + amountPaid;
       }
     });
 
@@ -129,7 +134,7 @@ export class ReportsController {
             <div class="stat-details">
               <span class="stat-title">Total Revenue Owed</span>
               <span class="stat-number text-warning"><strong>${formatMoney(totalOutstandingAll)}</strong></span>
-              <span class="stat-hint">${outstandingClients.length} client${outstandingClients.length !== 1 ? 's' : ''} with unpaid credit</span>
+              <span class="stat-hint">${outstandingClients.length} client${outstandingClients.length !== 1 ? 's' : ''} with an unpaid balance</span>
             </div>
           </div>
         </div>
@@ -168,7 +173,7 @@ export class ReportsController {
           <div class="breakdown-card">
             <div class="breakdown-header">
               <h3>💳 Collections by Payment Method</h3>
-              <span class="badge-total">${formatMoney(totalRevenue)} Total</span>
+              <span class="badge-total">${formatMoney(totalCollected)} Collected</span>
             </div>
             <div class="payment-method-list">
               <div class="pay-method-row">
@@ -199,8 +204,8 @@ export class ReportsController {
         <div class="reports-outstanding-section">
           <div class="section-header">
             <div>
-              <h3>💸 Revenue Owed — Outstanding Credits</h3>
-              <p class="section-sub">All unpaid credit sales across all dates. Shows who owes how much and when payment is due.</p>
+              <h3>💸 Revenue Owed — Outstanding Client Balances</h3>
+              <p class="section-sub">All unpaid balances across all dates. Shows each client, the amount still owed, and when payment is due.</p>
             </div>
             <span class="badge-total-warning">${formatMoney(totalOutstandingAll)} Total Owed</span>
           </div>
@@ -208,8 +213,8 @@ export class ReportsController {
           ${outstandingClients.length === 0 ? `
             <div class="empty-outstanding-box">
               <span class="empty-icon">✅</span>
-              <p><strong>No outstanding credits!</strong></p>
-              <p class="text-muted">All credit sales have been settled. Great job!</p>
+              <p><strong>No outstanding balances!</strong></p>
+              <p class="text-muted">All client balances have been settled. Great job!</p>
             </div>
           ` : `
             <div class="outstanding-clients-grid">
@@ -235,7 +240,7 @@ export class ReportsController {
                         <tr>
                           <th>Invoice #</th>
                           <th>Date</th>
-                          <th>Amount</th>
+                          <th>Owed</th>
                           <th>Due Date</th>
                           <th class="no-print">Action</th>
                         </tr>
@@ -248,7 +253,7 @@ export class ReportsController {
                             <td><strong>${formatMoney(cs.amount)}</strong></td>
                             <td>${cs.dueDate || '<span class="text-muted">Not set</span>'}</td>
                             <td class="no-print">
-                              <button type="button" class="btn btn-sm btn-success btn-mark-paid" data-salenum="${cs.saleNumber}" title="Mark this invoice as paid">
+                              <button type="button" class="btn btn-sm btn-success btn-mark-paid" data-salenum="${cs.saleNumber}" title="Mark this balance as paid">
                                 ✅ Mark Paid
                               </button>
                             </td>
@@ -295,10 +300,11 @@ export class ReportsController {
                 ` : sales.map(s => {
                   const itemsSummary = s.items.map(i => `${i.crates}× ${i.name}`).join(', ');
                   const method = s.paymentDetails?.method || s.paymentMethod;
-                  const isCredit = method === 'Pay Later (Credit)' && s.status !== 'PAID';
+                  const balanceDue = store.getSaleBalanceDue(s);
+                  const isOwed = balanceDue > 0;
 
                   return `
-                    <tr class="${isCredit ? 'row-credit-owed' : ''}">
+                    <tr class="${isOwed ? 'row-credit-owed' : ''}">
                       <td><strong>${s.saleNumber}</strong></td>
                       <td>${new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                       <td>${s.customerName ? s.customerName : '<span class="text-muted">Walk-in</span>'}</td>
@@ -306,7 +312,8 @@ export class ReportsController {
                       <td class="td-items-summary" title="${itemsSummary}">${itemsSummary}</td>
                       <td><strong>${s.totalCrates} cr</strong></td>
                       <td>
-                        <span class="status-badge ${isCredit ? 'status-warning' : 'status-ok'}">${method}</span>
+                        <span class="status-badge ${isOwed ? 'status-warning' : 'status-ok'}">${method}</span>
+                        ${isOwed ? `<div class="text-warning">Owes ${formatMoney(balanceDue)}</div>` : ''}
                         ${s.status === 'PAID' ? '<span class="badge-paid">PAID</span>' : ''}
                       </td>
                       <td><strong>${formatMoney(s.grandTotal)}</strong></td>
@@ -355,7 +362,7 @@ export class ReportsController {
       });
     }
 
-    // Mark Credit Paid buttons (Outstanding Credits section)
+    // Mark outstanding balances as paid
     this.container.querySelectorAll('.btn-mark-paid').forEach(btn => {
       btn.addEventListener('click', () => {
         const saleNum = btn.getAttribute('data-salenum');
