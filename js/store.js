@@ -535,10 +535,13 @@ class Store {
     return true;
   }
 
-  async refundSale(sale, amount, reason, isVoid = false) {
-    const returnItems = isVoid
-      ? sale.items.map(item => ({ productId: item.productId, crates: item.crates }))
-      : [];
+  async refundSale(sale, amount, reason, isVoid = false, returnItems = []) {
+    if (isVoid) {
+      const cratesByProduct = new Map();
+      sale.items.forEach(item => cratesByProduct.set(item.productId,
+        (cratesByProduct.get(item.productId) || 0) + item.crates));
+      returnItems = [...cratesByProduct].map(([productId, crates]) => ({ productId, crates }));
+    }
     await api.post('/api/pos/refund', {
       saleId: sale.id,
       amount,
@@ -608,7 +611,6 @@ class Store {
   }
 
   async migrateLocalData() {
-    const { api } = await import('./api.js');
     const backup = {
       settings: this.load(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS),
       products: this.load(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS),
@@ -632,4 +634,18 @@ export function formatMoney(amount, customSymbol = null) {
   const sym = customSymbol !== null ? customSymbol : (store.getSettings().currencySymbol || 'GH₵');
   const num = Number(amount) || 0;
   return `${sym} ${num.toFixed(2)}`;
+}
+
+export function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character]);
+}
+
+export function formatMoneyHtml(amount, customSymbol = null) {
+  return escapeHtml(formatMoney(amount, customSymbol));
 }

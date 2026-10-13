@@ -4,7 +4,7 @@
  * and crate count adjustments (strictly whole numbers).
  */
 
-import { store, formatMoney } from './store.js';
+import { store, formatMoneyHtml, escapeHtml } from './store.js';
 
 export class PosController {
   constructor() {
@@ -155,7 +155,9 @@ export class PosController {
     const toast = document.createElement('div');
     toast.className = `pos-toast pos-toast-${type}`;
     toast.setAttribute('role', 'alert');
-    toast.innerHTML = `<span>${message}</span>`;
+    const messageNode = document.createElement('span');
+    messageNode.textContent = message;
+    toast.appendChild(messageNode);
     document.body.appendChild(toast);
     setTimeout(() => {
       toast.classList.add('pos-toast-fade');
@@ -217,11 +219,11 @@ export class PosController {
 
               return `
                 <article class="pos-product-card ${isOutOfStock ? 'is-out-of-stock' : ''} ${inCartCount > 0 ? 'has-in-cart' : ''}" 
-                  data-product-id="${prod.id}">
+                  data-product-id="${escapeHtml(prod.id)}">
                   <div class="prod-card-header">
                     <div class="prod-title-wrap">
-                      <h3 class="prod-name">${prod.name}</h3>
-                      <span class="prod-badge-size">${prod.sizeLabel} Crate</span>
+                      <h3 class="prod-name">${escapeHtml(prod.name)}</h3>
+                      <span class="prod-badge-size">${escapeHtml(prod.sizeLabel)} Crate</span>
                     </div>
                     <div class="prod-stock-status">
                       ${isOutOfStock ? `
@@ -236,12 +238,12 @@ export class PosController {
 
                   <div class="prod-card-price-row">
                     <div class="prod-price-box">
-                      <span class="prod-price-currency">${calcs.currencySymbol}</span>
+                      <span class="prod-price-currency">${escapeHtml(calcs.currencySymbol)}</span>
                       <span class="prod-price-amount">${unitPrice.toFixed(2)}</span>
                       <span class="prod-price-unit">/ crate</span>
                     </div>
                     <div class="prod-sub-note">
-                      ${this.priceType === 'retail' ? `Wholesale: ${formatMoney(prod.wholesalePrice)}` : `Retail: ${formatMoney(prod.retailPrice)}`}
+                      ${this.priceType === 'retail' ? `Wholesale: ${formatMoneyHtml(prod.wholesalePrice)}` : `Retail: ${formatMoneyHtml(prod.retailPrice)}`}
                     </div>
                   </div>
 
@@ -250,21 +252,21 @@ export class PosController {
                     <button type="button" 
                       class="btn btn-crate-add" 
                       data-action="add-1" 
-                      data-id="${prod.id}"
+                      data-id="${escapeHtml(prod.id)}"
                       ${isOutOfStock || remainingAvailable < 1 ? 'disabled' : ''}>
                       + 1 Crate
                     </button>
                     <button type="button" 
                       class="btn btn-crate-bulk" 
                       data-action="add-5" 
-                      data-id="${prod.id}"
+                      data-id="${escapeHtml(prod.id)}"
                       ${isOutOfStock || remainingAvailable < 5 ? 'disabled' : ''}>
                       + 5
                     </button>
                     <button type="button" 
                       class="btn btn-crate-bulk" 
                       data-action="add-10" 
-                      data-id="${prod.id}"
+                      data-id="${escapeHtml(prod.id)}"
                       ${isOutOfStock || remainingAvailable < 10 ? 'disabled' : ''}>
                       + 10
                     </button>
@@ -306,7 +308,7 @@ export class PosController {
                 id="pos-customer-name" 
                 class="form-control form-control-sm" 
                 placeholder="Customer Name (Optional)" 
-                value="${this.customerName || ''}">
+                value="${escapeHtml(this.customerName)}">
             </div>
 
             <!-- Cart Items List -->
@@ -322,9 +324,9 @@ export class PosController {
                   ${calcs.items.map(item => `
                     <div class="pos-cart-item" role="listitem">
                       <div class="cart-item-info">
-                        <div class="cart-item-name">${item.name}</div>
+                        <div class="cart-item-name">${escapeHtml(item.name)}</div>
                         <div class="cart-item-rates">
-                          ${formatMoney(item.unitPrice)} × ${item.crates} crate${item.crates > 1 ? 's' : ''}
+                          ${formatMoneyHtml(item.unitPrice)} × ${item.crates} crate${item.crates > 1 ? 's' : ''}
                         </div>
                       </div>
 
@@ -333,36 +335,36 @@ export class PosController {
                         <button type="button" 
                           class="btn-stepper btn-minus" 
                           data-action="decrement" 
-                          data-id="${item.productId}"
+                          data-id="${escapeHtml(item.productId)}"
                           aria-label="Decrease crate count">−</button>
                         
                         <input type="number" 
                           class="stepper-input" 
-                          data-id="${item.productId}"
+                          data-id="${escapeHtml(item.productId)}"
                           value="${item.crates}" 
                           min="1" 
                           max="${item.stock}" 
                           step="1"
-                          aria-label="Whole crates for ${item.name}">
+                          aria-label="Whole crates for ${escapeHtml(item.name)}">
                         
                         <button type="button" 
                           class="btn-stepper btn-plus" 
                           data-action="increment" 
-                          data-id="${item.productId}"
+                          data-id="${escapeHtml(item.productId)}"
                           ${item.crates >= item.stock ? 'disabled' : ''}
                           aria-label="Increase crate count">+</button>
                       </div>
 
                       <div class="cart-item-total">
-                        ${formatMoney(item.lineTotal)}
+                        ${formatMoneyHtml(item.lineTotal)}
                       </div>
 
                       <button type="button" 
                         class="btn-item-remove" 
                         data-action="remove" 
-                        data-id="${item.productId}"
+                        data-id="${escapeHtml(item.productId)}"
                         title="Remove item" 
-                        aria-label="Remove ${item.name} from sale">
+                        aria-label="Remove ${escapeHtml(item.name)} from sale">
                         ×
                       </button>
                     </div>
@@ -396,17 +398,17 @@ export class PosController {
               </div>
               <div class="summary-line">
                 <span>Subtotal</span>
-                <span>${formatMoney(calcs.subtotal)}</span>
+                <span>${formatMoneyHtml(calcs.subtotal)}</span>
               </div>
               ${calcs.discountAmount > 0 ? `
                 <div class="summary-line discount-line">
                   <span>Bulk Discount (${calcs.discountPercent}%)</span>
-                  <span class="discount-val">− ${formatMoney(calcs.discountAmount)}</span>
+                  <span class="discount-val">− ${formatMoneyHtml(calcs.discountAmount)}</span>
                 </div>
               ` : ''}
               <div class="summary-line grand-total-line">
                 <span>Grand Total</span>
-                <span class="grand-total-amount">${formatMoney(calcs.grandTotal)}</span>
+                <span class="grand-total-amount">${formatMoneyHtml(calcs.grandTotal)}</span>
               </div>
             </div>
 
@@ -418,7 +420,7 @@ export class PosController {
                 ${this.cart.length === 0 ? 'disabled' : ''}>
                 <span class="checkout-icon">💳</span>
                 <span>Proceed to Payment</span>
-                <span class="checkout-total">(${formatMoney(calcs.grandTotal)})</span>
+                <span class="checkout-total">(${formatMoneyHtml(calcs.grandTotal)})</span>
               </button>
             </div>
           </div>

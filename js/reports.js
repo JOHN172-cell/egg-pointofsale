@@ -4,7 +4,7 @@
  * and allows reprinting past sale receipts.
  */
 
-import { store, formatMoney } from './store.js';
+import { store, formatMoney, formatMoneyHtml, escapeHtml } from './store.js';
 
 export class ReportsController {
   constructor(onReprintRequested) {
@@ -28,8 +28,6 @@ export class ReportsController {
   render() {
     if (!this.container) return;
 
-    const settings = store.getSettings();
-    const currency = settings.currencySymbol || 'GH₵';
     const sales = store.getSales(this.selectedDate);
 
     // Compute metrics
@@ -54,7 +52,7 @@ export class ReportsController {
     sales.forEach(sale => {
       if (sale.status === 'VOIDED') return;
       totalRevenue += Number.isFinite(sale.netTotal) ? sale.netTotal : sale.grandTotal;
-      totalCratesSold += sale.totalCrates;
+      totalCratesSold += sale.netCrates ?? sale.totalCrates;
       totalDiscountGiven += (sale.discountAmount || 0);
 
       // Crate breakdown
@@ -62,7 +60,7 @@ export class ReportsController {
         if (!cratesBySize[item.name]) {
           cratesBySize[item.name] = { crates: 0, revenue: 0, sizeLabel: item.sizeLabel || item.name };
         }
-        cratesBySize[item.name].crates += item.crates;
+        cratesBySize[item.name].crates += item.netCrates ?? item.crates;
         cratesBySize[item.name].revenue += item.lineTotal;
       });
 
@@ -108,7 +106,7 @@ export class ReportsController {
             <span class="stat-icon">💰</span>
             <div class="stat-details">
               <span class="stat-title">Total Revenue</span>
-              <span class="stat-number"><strong>${formatMoney(totalRevenue)}</strong></span>
+              <span class="stat-number"><strong>${formatMoneyHtml(totalRevenue)}</strong></span>
               <span class="stat-hint">${sales.length} sale transaction${sales.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
@@ -126,7 +124,7 @@ export class ReportsController {
             <span class="stat-icon">🏷️</span>
             <div class="stat-details">
               <span class="stat-title">Bulk Discounts Given</span>
-              <span class="stat-number"><strong>${formatMoney(totalDiscountGiven)}</strong></span>
+              <span class="stat-number"><strong>${formatMoneyHtml(totalDiscountGiven)}</strong></span>
               <span class="stat-hint">From wholesale/bulk orders</span>
             </div>
           </div>
@@ -135,7 +133,7 @@ export class ReportsController {
             <span class="stat-icon">⏳</span>
             <div class="stat-details">
               <span class="stat-title">Total Revenue Owed</span>
-              <span class="stat-number text-warning"><strong>${formatMoney(totalOutstandingAll)}</strong></span>
+              <span class="stat-number text-warning"><strong>${formatMoneyHtml(totalOutstandingAll)}</strong></span>
               <span class="stat-hint">${outstandingClients.length} client${outstandingClients.length !== 1 ? 's' : ''} with an unpaid balance</span>
             </div>
           </div>
@@ -157,9 +155,9 @@ export class ReportsController {
                 return `
                   <div class="size-progress-item">
                     <div class="size-progress-labels">
-                      <span class="size-prog-name"><strong>${sizeName}</strong></span>
+                      <span class="size-prog-name"><strong>${escapeHtml(sizeName)}</strong></span>
                       <span class="size-prog-vals">
-                        <strong>${data.crates} crates</strong> (${percent}%) — ${formatMoney(data.revenue)}
+                        <strong>${data.crates} crates</strong> (${percent}%) — ${formatMoneyHtml(data.revenue)}
                       </span>
                     </div>
                     <div class="progress-bar-bg">
@@ -175,28 +173,28 @@ export class ReportsController {
           <div class="breakdown-card">
             <div class="breakdown-header">
               <h3>💳 Collections by Payment Method</h3>
-              <span class="badge-total">${formatMoney(totalCollected)} Collected</span>
+              <span class="badge-total">${formatMoneyHtml(totalCollected)} Collected</span>
             </div>
             <div class="payment-method-list">
               <div class="pay-method-row">
                 <span class="pay-method-name">💵 Cash</span>
-                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Cash'])}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoneyHtml(paymentTotals['Cash'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">📱 Mobile Money</span>
-                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Mobile Money'])}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoneyHtml(paymentTotals['Mobile Money'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">💳 Card</span>
-                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Card'])}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoneyHtml(paymentTotals['Card'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">⏳ Pay Later (Credit)</span>
-                <span class="pay-method-amount text-warning"><strong>${formatMoney(paymentTotals['Pay Later (Credit)'])}</strong></span>
+                <span class="pay-method-amount text-warning"><strong>${formatMoneyHtml(paymentTotals['Pay Later (Credit)'])}</strong></span>
               </div>
               <div class="pay-method-row">
                 <span class="pay-method-name">🔀 Split Payment</span>
-                <span class="pay-method-amount"><strong>${formatMoney(paymentTotals['Split Payment'])}</strong></span>
+                <span class="pay-method-amount"><strong>${formatMoneyHtml(paymentTotals['Split Payment'])}</strong></span>
               </div>
             </div>
           </div>
@@ -209,7 +207,7 @@ export class ReportsController {
               <h3>💸 Revenue Owed — Outstanding Client Balances</h3>
               <p class="section-sub">All unpaid balances across all dates. Shows each client, the amount still owed, and when payment is due.</p>
             </div>
-            <span class="badge-total-warning">${formatMoney(totalOutstandingAll)} Total Owed</span>
+            <span class="badge-total-warning">${formatMoneyHtml(totalOutstandingAll)} Total Owed</span>
           </div>
 
           ${outstandingClients.length === 0 ? `
@@ -226,13 +224,13 @@ export class ReportsController {
                     <div class="client-identity">
                       <span class="client-avatar">👤</span>
                       <div>
-                        <strong class="client-name">${client.clientName}</strong>
-                        ${client.clientPhone ? `<span class="client-phone">📞 ${client.clientPhone}</span>` : ''}
+                        <strong class="client-name">${escapeHtml(client.clientName)}</strong>
+                        ${client.clientPhone ? `<span class="client-phone">📞 ${escapeHtml(client.clientPhone)}</span>` : ''}
                       </div>
                     </div>
                     <div class="client-owed-badge">
                       <span class="owed-label">OWES</span>
-                      <span class="owed-amount">${formatMoney(client.totalOwed)}</span>
+                      <span class="owed-amount">${formatMoneyHtml(client.totalOwed)}</span>
                     </div>
                   </div>
 
@@ -250,12 +248,12 @@ export class ReportsController {
                       <tbody>
                         ${client.sales.map(cs => `
                           <tr>
-                            <td><strong>${cs.saleNumber}</strong></td>
+                            <td><strong>${escapeHtml(cs.saleNumber)}</strong></td>
                             <td>${new Date(cs.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                            <td><strong>${formatMoney(cs.amount)}</strong></td>
-                            <td>${cs.dueDate || '<span class="text-muted">Not set</span>'}</td>
+                            <td><strong>${formatMoneyHtml(cs.amount)}</strong></td>
+                            <td>${cs.dueDate ? escapeHtml(cs.dueDate) : '<span class="text-muted">Not set</span>'}</td>
                             <td class="no-print">
-                              <button type="button" class="btn btn-sm btn-success btn-mark-paid" data-salenum="${cs.saleNumber}" title="Mark this balance as paid">
+                              <button type="button" class="btn btn-sm btn-success btn-mark-paid" data-salenum="${escapeHtml(cs.saleNumber)}" title="Mark this balance as paid">
                                 ✅ Mark Paid
                               </button>
                             </td>
@@ -307,25 +305,25 @@ export class ReportsController {
 
                   return `
                     <tr class="${isOwed ? 'row-credit-owed' : ''}">
-                      <td><strong>${s.saleNumber}</strong></td>
+                      <td><strong>${escapeHtml(s.saleNumber)}</strong></td>
                       <td>${new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                      <td>${s.customerName ? s.customerName : '<span class="text-muted">Walk-in</span>'}</td>
-                      <td><span class="badge-price-type ${s.priceType}">${s.priceType.toUpperCase()}</span></td>
-                      <td class="td-items-summary" title="${itemsSummary}">${itemsSummary}</td>
+                      <td>${s.customerName ? escapeHtml(s.customerName) : '<span class="text-muted">Walk-in</span>'}</td>
+                      <td><span class="badge-price-type ${escapeHtml(s.priceType)}">${escapeHtml(s.priceType).toUpperCase()}</span></td>
+                      <td class="td-items-summary" title="${escapeHtml(itemsSummary)}">${escapeHtml(itemsSummary)}</td>
                       <td><strong>${s.totalCrates} cr</strong></td>
                       <td>
-                        <span class="status-badge ${isOwed ? 'status-warning' : 'status-ok'}">${method}</span>
-                        ${isOwed ? `<div class="text-warning">Owes ${formatMoney(balanceDue)}</div>` : ''}
+                        <span class="status-badge ${isOwed ? 'status-warning' : 'status-ok'}">${escapeHtml(method)}</span>
+                        ${isOwed ? `<div class="text-warning">Owes ${formatMoneyHtml(balanceDue)}</div>` : ''}
                         ${s.status === 'PAID' ? '<span class="badge-paid">PAID</span>' : ''}
                       </td>
-                      <td><strong>${formatMoney(s.grandTotal)}</strong></td>
+                      <td><strong>${formatMoneyHtml(s.grandTotal)}</strong></td>
                       <td class="text-right no-print">
-                        <button type="button" class="btn btn-sm btn-secondary btn-reprint-receipt" data-salenum="${s.saleNumber}">
+                        <button type="button" class="btn btn-sm btn-secondary btn-reprint-receipt" data-salenum="${escapeHtml(s.saleNumber)}">
                           Reprint Receipt
                         </button>
                         ${['manager','admin'].includes(document.documentElement.dataset.role) && !['VOIDED','REFUNDED'].includes(s.status)
-                          ? `<button type="button" class="btn btn-sm btn-secondary btn-refund-sale" data-salenum="${s.saleNumber}">Refund</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-void-sale" data-salenum="${s.saleNumber}">Void</button>` : ''}
+                          ? `<button type="button" class="btn btn-sm btn-secondary btn-refund-sale" data-salenum="${escapeHtml(s.saleNumber)}">Refund</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-void-sale" data-salenum="${escapeHtml(s.saleNumber)}">Void</button>` : ''}
                       </td>
                     </tr>
                   `;
@@ -404,8 +402,30 @@ export class ReportsController {
         if (!Number.isFinite(amount) || amount <= 0) return;
         const reason = prompt('Reason for the refund:');
         if (!reason?.trim()) return;
+        const returnedByProduct = new Map();
+        for (const item of sale.items) {
+          const existing = returnedByProduct.get(item.productId);
+          if (existing) {
+            existing.cratesSold += item.crates;
+            continue;
+          }
+          returnedByProduct.set(item.productId, {
+            productId: item.productId,
+            name: item.name,
+            cratesSold: item.crates
+          });
+        }
+        const returnItems = [];
+        for (const item of returnedByProduct.values()) {
+          const quantity = Number(prompt(`How many ${item.name} crates were physically returned? Enter 0 if none (maximum ${item.cratesSold}).`));
+          if (!Number.isInteger(quantity) || quantity < 0 || quantity > item.cratesSold) {
+            alert('Return quantities must be whole crates within the sale quantity.');
+            return;
+          }
+          if (quantity > 0) returnItems.push({ productId: item.productId, crates: quantity });
+        }
         try {
-          await store.refundSale(sale, amount, reason);
+          await store.refundSale(sale, amount, reason, false, returnItems);
           this.render();
         } catch (error) { alert(error.message || 'Unable to refund sale'); }
       });

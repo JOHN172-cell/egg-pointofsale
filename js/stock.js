@@ -4,7 +4,7 @@
  * handles deliveries, low-stock alerts, and manual adjustments.
  */
 
-import { store, formatMoney } from './store.js';
+import { store, formatMoneyHtml, escapeHtml } from './store.js';
 
 export class StockController {
   constructor() {
@@ -27,8 +27,6 @@ export class StockController {
     if (!this.container) return;
 
     const products = store.getProducts(true);
-    const settings = store.getSettings();
-    const currency = settings.currencySymbol || 'GH₵';
     const allLogs = store.getStockLogs();
 
     // Summary counters
@@ -68,7 +66,7 @@ export class StockController {
             <span class="stat-icon">💰</span>
             <div class="stat-info">
               <span class="stat-label">Estimated Stock Value (Retail)</span>
-              <span class="stat-value"><strong>${formatMoney(totalStockValue)}</strong></span>
+              <span class="stat-value"><strong>${formatMoneyHtml(totalStockValue)}</strong></span>
               <span class="stat-sub">Across ${products.filter(p=>p.active).length} egg sizes</span>
             </div>
           </div>
@@ -110,8 +108,8 @@ export class StockController {
                 <div class="stock-size-card ${isOut ? 'card-out' : isLow ? 'card-warning' : ''}">
                   <div class="size-card-header">
                     <div>
-                      <h3 class="size-name">${prod.name}</h3>
-                      <span class="size-badge">${prod.sizeLabel} Crate (30 eggs)</span>
+                      <h3 class="size-name">${escapeHtml(prod.name)}</h3>
+                      <span class="size-badge">${escapeHtml(prod.sizeLabel)} Crate (30 eggs)</span>
                     </div>
                     <span class="status-badge ${statusClass}">${statusLabel}</span>
                   </div>
@@ -132,19 +130,19 @@ export class StockController {
                     </div>
                     <div>
                       <span class="detail-label">Retail / Crate:</span>
-                      <span class="detail-val">${formatMoney(prod.retailPrice)}</span>
+                      <span class="detail-val">${formatMoneyHtml(prod.retailPrice)}</span>
                     </div>
                     <div>
                       <span class="detail-label">Wholesale / Crate:</span>
-                      <span class="detail-val">${formatMoney(prod.wholesalePrice)}</span>
+                      <span class="detail-val">${formatMoneyHtml(prod.wholesalePrice)}</span>
                     </div>
                   </div>
 
                   <div class="size-card-footer">
-                    <button type="button" class="btn btn-sm btn-secondary btn-quick-delivery" data-id="${prod.id}">
+                    <button type="button" class="btn btn-sm btn-secondary btn-quick-delivery" data-id="${escapeHtml(prod.id)}">
                       + Add Delivery
                     </button>
-                    <button type="button" class="btn btn-sm btn-secondary btn-quick-adjust" data-id="${prod.id}">
+                    <button type="button" class="btn btn-sm btn-secondary btn-quick-adjust" data-id="${escapeHtml(prod.id)}">
                       Adjust
                     </button>
                   </div>
@@ -165,7 +163,7 @@ export class StockController {
               <label for="stock-size-filter" class="form-label-inline">Filter Size:</label>
               <select id="stock-size-filter" class="form-control form-control-sm">
                 <option value="all">All Egg Sizes</option>
-                ${products.map(p => `<option value="${p.id}" ${this.selectedSizeFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+                ${products.map(p => `<option value="${escapeHtml(p.id)}" ${this.selectedSizeFilter === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
               </select>
             </div>
           </div>
@@ -196,15 +194,15 @@ export class StockController {
                   return `
                     <tr>
                       <td>${new Date(log.timestamp).toLocaleString('en-GB')}</td>
-                      <td><strong>${log.productName}</strong></td>
-                      <td><span class="status-badge ${typeBadgeClass}">${log.type}</span></td>
+                      <td><strong>${escapeHtml(log.productName)}</strong></td>
+                      <td><span class="status-badge ${typeBadgeClass}">${escapeHtml(log.type)}</span></td>
                       <td class="${isPositive ? 'text-success font-bold' : 'text-danger font-bold'}">
                         ${isPositive ? '+' : ''}${log.cratesChanged} crates
                       </td>
                       <td>${log.previousStock}</td>
                       <td><strong>${log.newStock}</strong></td>
-                      <td>${log.reason}</td>
-                      <td>${log.cashier || 'System'}</td>
+                      <td>${escapeHtml(log.reason)}</td>
+                      <td>${escapeHtml(log.cashier || 'System')}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -227,7 +225,7 @@ export class StockController {
             <div class="form-group">
               <label for="delivery-product-select" class="form-label">Egg Size <span class="required-star">*</span></label>
               <select id="delivery-product-select" class="form-control" required>
-                ${products.filter(p=>p.active).map(p => `<option value="${p.id}">${p.name} (Current: ${p.stock} crates)</option>`).join('')}
+                ${products.filter(p=>p.active).map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (Current: ${p.stock} crates)</option>`).join('')}
               </select>
             </div>
 
@@ -269,7 +267,7 @@ export class StockController {
             <div class="form-group">
               <label for="adjust-product-select" class="form-label">Egg Size <span class="required-star">*</span></label>
               <select id="adjust-product-select" class="form-control" required>
-                ${products.map(p => `<option value="${p.id}">${p.name} (Current: ${p.stock} crates)</option>`).join('')}
+                ${products.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (Current: ${p.stock} crates)</option>`).join('')}
               </select>
             </div>
 

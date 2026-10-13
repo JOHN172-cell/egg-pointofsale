@@ -35,7 +35,9 @@ class App {
       const user = await currentSession();
       if (user) await this.enterApp(user);
     } catch (error) {
-      this.showLoginError(error.message || 'Unable to connect. Check your internet connection and try again.');
+      if (error.status !== 401) {
+        this.showLoginError(error.message || 'Unable to connect. Check your internet connection and try again.');
+      }
     }
   }
 

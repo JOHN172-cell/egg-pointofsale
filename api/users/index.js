@@ -2,7 +2,7 @@ import { authenticate, adminClient, readBody, sendJson, fail } from '../../serve
 
 export default async function handler(req, res) {
   try {
-    const { user, profile } = await authenticate(req, ['manager', 'admin']);
+    const { client, user, profile } = await authenticate(req, ['manager', 'admin']);
     const admin = adminClient();
     if (req.method === 'GET') {
       const { data, error } = await admin.from('profiles')
@@ -11,11 +11,12 @@ export default async function handler(req, res) {
       return sendJson(res, 200, { users: data });
     }
     if (req.method === 'POST') {
+      if (profile.role !== 'admin') return sendJson(res, 403, { error: 'Only an administrator can create staff accounts.' });
       const body = await readBody(req);
       if (typeof body.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)
         || typeof body.password !== 'string' || body.password.length < 12
         || typeof body.displayName !== 'string' || !body.displayName.trim()
-        || !['cashier', ...(profile.role === 'admin' ? ['manager'] : [])].includes(body.role)) {
+        || !['cashier', 'manager'].includes(body.role)) {
         return sendJson(res, 400, { error: 'Provide a valid email, name, staff role, and password with at least 12 characters.' });
       }
       const { data, error } = await admin.auth.admin.createUser({

@@ -4,7 +4,7 @@
  * signature sections, print formatting, WhatsApp, and SMS sharing.
  */
 
-import { store, formatMoney } from './store.js';
+import { store, formatMoneyHtml, escapeHtml } from './store.js';
 
 export class ReceiptModal {
   constructor(modalElement) {
@@ -154,7 +154,6 @@ export class ReceiptModal {
     if (!sale) return;
 
     const settings = store.getSettings();
-    const currency = settings.currencySymbol || 'GH₵';
     const balanceDue = store.getSaleBalanceDue(sale);
     const modalBody = this.modal.querySelector('.modal-body');
     const isA4 = this.printFormat === 'a4';
@@ -196,7 +195,7 @@ export class ReceiptModal {
             <div class="receipt-header-branding">
               <div class="receipt-logo">🥚</div>
               <div>
-                <h1 class="receipt-business-name">${settings.businessName}</h1>
+                <h1 class="receipt-business-name">${escapeHtml(settings.businessName)}</h1>
                 <div class="receipt-tagline">POULTRY & COMMERCIAL EGG FARMS</div>
               </div>
             </div>
@@ -207,9 +206,9 @@ export class ReceiptModal {
             </div>
 
             <div class="receipt-contact">
-              <div><strong>Phone:</strong> ${settings.phone}</div>
+              <div><strong>Phone:</strong> ${escapeHtml(settings.phone)}</div>
               <div><strong>MoMo:</strong> 0552955360</div>
-              ${settings.address && settings.address.trim() ? `<div><strong>Farm Address:</strong> ${settings.address}</div>` : ''}
+              ${settings.address && settings.address.trim() ? `<div><strong>Farm Address:</strong> ${escapeHtml(settings.address)}</div>` : ''}
             </div>
           </div>
 
@@ -220,7 +219,7 @@ export class ReceiptModal {
             <div class="meta-col">
               <div class="meta-row">
                 <span class="meta-label">Invoice / Sale #:</span>
-                <span class="meta-val"><strong>${sale.saleNumber}</strong></span>
+                <span class="meta-val"><strong>${escapeHtml(sale.saleNumber)}</strong></span>
               </div>
               <div class="meta-row">
                 <span class="meta-label">Date & Time:</span>
@@ -228,24 +227,24 @@ export class ReceiptModal {
               </div>
               <div class="meta-row">
                 <span class="meta-label">Issued By (Cashier):</span>
-                <span class="meta-val">${sale.cashier}</span>
+                <span class="meta-val">${escapeHtml(sale.cashier)}</span>
               </div>
             </div>
 
             <div class="meta-col">
               <div class="meta-row">
                 <span class="meta-label">Client / Customer:</span>
-                <span class="meta-val"><strong>${sale.customerName ? sale.customerName : 'Walk-in Retail Client'}</strong></span>
+                <span class="meta-val"><strong>${sale.customerName ? escapeHtml(sale.customerName) : 'Walk-in Retail Client'}</strong></span>
               </div>
               ${sale.customerPhone ? `
                 <div class="meta-row">
                   <span class="meta-label">Client Phone:</span>
-                  <span class="meta-val">${sale.customerPhone}</span>
+                  <span class="meta-val">${escapeHtml(sale.customerPhone)}</span>
                 </div>
               ` : ''}
               <div class="meta-row">
                 <span class="meta-label">Pricing Applied:</span>
-                <span class="meta-val"><strong>${sale.priceType.toUpperCase()} PRICING</strong></span>
+                <span class="meta-val"><strong>${escapeHtml(sale.priceType).toUpperCase()} PRICING</strong></span>
               </div>
             </div>
           </div>
@@ -266,12 +265,12 @@ export class ReceiptModal {
               ${sale.items.map(item => `
                 <tr>
                   <td class="col-item">
-                    <strong>${item.name}</strong>
+                    <strong>${escapeHtml(item.name)}</strong>
                     <div class="item-sub-desc">Full 30-egg crate (${item.crates * 30} eggs total)</div>
                   </td>
                   <td class="col-qty"><strong>${item.crates}</strong> Crates</td>
-                  <td class="col-price">${formatMoney(item.unitPrice)}</td>
-                  <td class="col-total">${formatMoney(item.lineTotal)}</td>
+                  <td class="col-price">${formatMoneyHtml(item.unitPrice)}</td>
+                  <td class="col-total">${formatMoneyHtml(item.lineTotal)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -298,17 +297,17 @@ export class ReceiptModal {
               </div>
               <div class="total-row">
                 <span>Subtotal:</span>
-                <span>${formatMoney(sale.subtotal)}</span>
+                <span>${formatMoneyHtml(sale.subtotal)}</span>
               </div>
               ${sale.discountAmount > 0 ? `
                 <div class="total-row discount-row">
                   <span>Bulk Discount (${sale.discountPercent}%):</span>
-                  <span>− ${formatMoney(sale.discountAmount)}</span>
+                  <span>− ${formatMoneyHtml(sale.discountAmount)}</span>
                 </div>
               ` : ''}
               <div class="total-row grand-total-row">
                 <span>TOTAL AMOUNT:</span>
-                <span class="total-grand-number">${formatMoney(sale.grandTotal)}</span>
+                <span class="total-grand-number">${formatMoneyHtml(sale.grandTotal)}</span>
               </div>
             </div>
           </div>
@@ -321,27 +320,27 @@ export class ReceiptModal {
             <div class="payment-grid-row">
               <div class="payment-method-row">
                 <span>Payment Method:</span>
-                <span><strong>${sale.paymentDetails ? sale.paymentDetails.method : sale.paymentMethod}</strong></span>
+                <span><strong>${escapeHtml(sale.paymentDetails ? sale.paymentDetails.method : sale.paymentMethod)}</strong></span>
               </div>
 
               ${sale.paymentDetails && sale.paymentDetails.method === 'Cash' ? `
                 <div class="payment-detail-row">
                   <span>Amount Tendered:</span>
-                  <span>${formatMoney(sale.paymentDetails.amountTendered)}</span>
+                  <span>${formatMoneyHtml(sale.paymentDetails.amountTendered)}</span>
                 </div>
                 ${balanceDue > 0 ? `
                   <div class="payment-detail-row">
                     <span>Amount Paid:</span>
-                    <span>${formatMoney(sale.grandTotal - balanceDue)}</span>
+                    <span>${formatMoneyHtml(sale.grandTotal - balanceDue)}</span>
                   </div>
                   <div class="payment-detail-row highlight-due">
                     <span>Balance Due:</span>
-                    <span><strong>${formatMoney(balanceDue)}</strong></span>
+                    <span><strong>${formatMoneyHtml(balanceDue)}</strong></span>
                   </div>
                 ` : `
                   <div class="payment-detail-row highlight-change">
                   <span>Change Returned:</span>
-                  <span><strong>${formatMoney(sale.paymentDetails.change)}</strong></span>
+                  <span><strong>${formatMoneyHtml(sale.paymentDetails.change)}</strong></span>
                   </div>
                 `}
               ` : ''}
@@ -349,54 +348,54 @@ export class ReceiptModal {
               ${sale.paymentDetails && sale.paymentDetails.method === 'Mobile Money' ? `
                 <div class="payment-detail-row">
                   <span>Network:</span>
-                  <span><strong>${sale.paymentDetails.network}</strong></span>
+                  <span><strong>${escapeHtml(sale.paymentDetails.network)}</strong></span>
                 </div>
                 ${sale.paymentDetails.reference ? `
                   <div class="payment-detail-row">
                     <span>Reference / Transaction ID:</span>
-                    <span>${sale.paymentDetails.reference}</span>
+                    <span>${escapeHtml(sale.paymentDetails.reference)}</span>
                   </div>
                 ` : ''}
                 <div class="payment-detail-row">
                   <span>Amount Settled:</span>
-                  <span>${formatMoney(sale.grandTotal)}</span>
+                  <span>${formatMoneyHtml(sale.grandTotal)}</span>
                 </div>
               ` : ''}
 
               ${sale.paymentDetails && sale.paymentDetails.method === 'Pay Later (Credit)' ? `
                 <div class="payment-detail-row highlight-due">
                   <span>Outstanding Balance:</span>
-                  <span><strong>${formatMoney(balanceDue)}</strong></span>
+                  <span><strong>${formatMoneyHtml(balanceDue)}</strong></span>
                 </div>
                 <div class="payment-detail-row">
                   <span>Amount Paid:</span>
-                  <span>${formatMoney(sale.grandTotal - balanceDue)}</span>
+                  <span>${formatMoneyHtml(sale.grandTotal - balanceDue)}</span>
                 </div>
                 ${sale.paymentDetails.dueDate ? `
                   <div class="payment-detail-row">
                     <span>Expected Payment Date:</span>
-                    <span>${sale.paymentDetails.dueDate}</span>
+                    <span>${escapeHtml(sale.paymentDetails.dueDate)}</span>
                   </div>
                 ` : ''}
               ` : ''}
 
               ${sale.paymentDetails && sale.paymentDetails.method === 'Split Payment' ? `
                 <div class="payment-detail-row">
-                  <span>Part 1 (${sale.paymentDetails.split1.method}):</span>
-                  <span>${formatMoney(sale.paymentDetails.split1.amount)}</span>
+                  <span>Part 1 (${escapeHtml(sale.paymentDetails.split1.method)}):</span>
+                  <span>${formatMoneyHtml(sale.paymentDetails.split1.amount)}</span>
                 </div>
                 <div class="payment-detail-row">
-                  <span>Part 2 (${sale.paymentDetails.split2.method}):</span>
-                  <span>${formatMoney(sale.paymentDetails.split2.amount)}</span>
+                  <span>Part 2 (${escapeHtml(sale.paymentDetails.split2.method)}):</span>
+                  <span>${formatMoneyHtml(sale.paymentDetails.split2.amount)}</span>
                 </div>
                 ${balanceDue > 0 ? `
                   <div class="payment-detail-row">
                     <span>Amount Paid:</span>
-                    <span>${formatMoney(sale.grandTotal - balanceDue)}</span>
+                    <span>${formatMoneyHtml(sale.grandTotal - balanceDue)}</span>
                   </div>
                   <div class="payment-detail-row highlight-due">
                     <span>Balance Due:</span>
-                    <span><strong>${formatMoney(balanceDue)}</strong></span>
+                    <span><strong>${formatMoneyHtml(balanceDue)}</strong></span>
                   </div>
                 ` : ''}
               ` : ''}
@@ -445,7 +444,7 @@ export class ReceiptModal {
                 <div class="sig-line"></div>
                 <div class="sig-meta">
                   <div class="sig-name-line">
-                    <strong>${sale.customerName ? sale.customerName : 'Client Name: _______________________'}</strong>
+                    <strong>${sale.customerName ? escapeHtml(sale.customerName) : 'Client Name: _______________________'}</strong>
                   </div>
                   <div class="sig-date-line">
                     Date: ________________________
@@ -501,12 +500,12 @@ export class ReceiptModal {
         <div class="client-balance-identity">
           <div class="balance-client-name">
             <span class="balance-label">Client:</span>
-            <strong>${clientData.clientName}</strong>
-            ${clientData.clientPhone ? `<span class="balance-phone">📞 ${clientData.clientPhone}</span>` : ''}
+            <strong>${escapeHtml(clientData.clientName)}</strong>
+            ${clientData.clientPhone ? `<span class="balance-phone">📞 ${escapeHtml(clientData.clientPhone)}</span>` : ''}
           </div>
           <div class="balance-total-owed">
             <span class="balance-label">Total Amount Owed:</span>
-            <span class="balance-amount-big">${formatMoney(clientData.totalOwed)}</span>
+            <span class="balance-amount-big">${formatMoneyHtml(clientData.totalOwed)}</span>
           </div>
         </div>
 
@@ -524,10 +523,10 @@ export class ReceiptModal {
             <tbody>
               ${clientData.sales.map(cs => `
                 <tr>
-                  <td><strong>${cs.saleNumber}</strong></td>
+                  <td><strong>${escapeHtml(cs.saleNumber)}</strong></td>
                   <td>${new Date(cs.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                  <td><strong>${formatMoney(cs.amount)}</strong></td>
-                  ${isA4 ? `<td>${cs.dueDate || 'Not set'}</td>` : ''}
+                  <td><strong>${formatMoneyHtml(cs.amount)}</strong></td>
+                  ${isA4 ? `<td>${cs.dueDate ? escapeHtml(cs.dueDate) : 'Not set'}</td>` : ''}
                 </tr>
               `).join('')}
             </tbody>

@@ -4,7 +4,7 @@
  * prices per crate, low stock warning thresholds, and active status.
  */
 
-import { store, formatMoney } from './store.js';
+import { store, formatMoneyHtml, escapeHtml } from './store.js';
 
 export class ProductsController {
   constructor() {
@@ -28,7 +28,7 @@ export class ProductsController {
 
     const products = store.getProducts(true); // include inactive
     const settings = store.getSettings();
-    const currency = settings.currencySymbol || 'GH₵';
+    const currency = escapeHtml(settings.currencySymbol || 'GH₵');
 
     this.container.innerHTML = `
       <div class="products-view-layout">
@@ -69,15 +69,15 @@ export class ProductsController {
                     </td>
                     <td>
                       <div class="prod-td-title">
-                        <strong>${prod.name}</strong>
-                        <small class="prod-td-desc">${prod.description || `${prod.sizeLabel} crate`}</small>
+                        <strong>${escapeHtml(prod.name)}</strong>
+                        <small class="prod-td-desc">${escapeHtml(prod.description || `${prod.sizeLabel} crate`)}</small>
                       </div>
                     </td>
                     <td>
-                      <strong class="price-val">${formatMoney(prod.retailPrice)}</strong>
+                      <strong class="price-val">${formatMoneyHtml(prod.retailPrice)}</strong>
                     </td>
                     <td>
-                      <span class="price-val-wholesale">${formatMoney(prod.wholesalePrice)}</span>
+                      <span class="price-val-wholesale">${formatMoneyHtml(prod.wholesalePrice)}</span>
                     </td>
                     <td>
                       <strong>${prod.stock}</strong> crates
@@ -90,10 +90,10 @@ export class ProductsController {
                     </td>
                     <td class="text-right">
                       <div class="btn-group-sm">
-                        <button type="button" class="btn btn-sm btn-secondary btn-edit-product" data-id="${prod.id}">
+                        <button type="button" class="btn btn-sm btn-secondary btn-edit-product" data-id="${escapeHtml(prod.id)}">
                           Edit
                         </button>
-                        <button type="button" class="btn btn-sm ${prod.active ? 'btn-outline-danger' : 'btn-outline-success'} btn-toggle-active" data-id="${prod.id}">
+                        <button type="button" class="btn btn-sm ${prod.active ? 'btn-outline-danger' : 'btn-outline-success'} btn-toggle-active" data-id="${escapeHtml(prod.id)}">
                           ${prod.active ? 'Deactivate' : 'Activate'}
                         </button>
                       </div>

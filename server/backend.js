@@ -18,9 +18,44 @@ export function adminClient() {
   return createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+export function cookieValue(req, name) {
+  const cookie = req.headers.cookie || '';
+  const value = cookie.split(';').map(part => part.trim())
+    .find(part => part.startsWith(`${name}=`))?.slice(name.length + 1);
+  return value ? decodeURIComponent(value) : '';
+}
+
+export function setSessionCookies(res, session) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  const accessAge = Math.max(60, Number(session.expires_in) || 1800);
+  res.setHeader('Set-Cookie', [
+    `sylcat_access=${encodeURIComponent(session.access_token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${accessAge}${secure}`,
+    `sylcat_refresh=${encodeURIComponent(session.refresh_token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${secure}`
+  ]);
+}
+
+export function clearSessionCookies(res) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', [
+    `sylcat_access=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`,
+    `sylcat_refresh=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`
+  ]);
+}
+
+export function assertSameOrigin(req) {
+  const origin = req.headers.origin;
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  let originHost = '';
+  try { originHost = new URL(origin).host; } catch { /* invalid and missing origins are rejected below */ }
+  if (!host || !originHost || originHost.toLowerCase() !== host.toLowerCase()) {
+    throw Object.assign(new Error('Cross-origin request blocked.'), { statusCode: 403 });
+  }
+}
+
 export async function authenticate(req, allowedRoles = ['cashier', 'manager', 'admin']) {
   requireConfiguration();
-  const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) assertSameOrigin(req);
+  const token = cookieValue(req, 'sylcat_access');
   if (!token) throw Object.assign(new Error('Sign in is required.'), { statusCode: 401 });
   const client = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -84,8 +119,33 @@ export function mapProduct(row) {
 
 export function mapSale(row, items = [], adjustments = []) {
   const refundedCents = adjustments
-    .filter(adjustment => adjustment.adjustment_type === 'refund')
+    .filter(adjustment => ['refund', 'void'].includes(adjustment.adjustment_type))
     .reduce((sum, adjustment) => sum + Number(adjustment.amount_cents), 0);
+  const returnedByProduct = new Map();
+  for (const adjustment of adjustments) {
+    for (const returned of adjustment.returned_items || []) {
+      returnedByProduct.set(returned.productId,
+        (returnedByProduct.get(returned.productId) || 0) + Number(returned.crates || 0));
+    }
+  }
+  const mappedItems = items.map(item => {
+    const remainingReturned = returnedByProduct.get(item.product_id) || 0;
+    const cratesReturned = Math.min(item.crates, remainingReturned);
+    returnedByProduct.set(item.product_id, remainingReturned - cratesReturned);
+    return {
+      productId: item.product_id,
+      name: item.product_name,
+      sizeLabel: item.size_label,
+      crates: item.crates,
+      cratesReturned,
+      netCrates: item.crates - cratesReturned,
+      unitPrice: toMoney(item.unit_price_cents),
+      lineTotal: toMoney(item.line_total_cents)
+    };
+  });
+  const balanceDue = row.status === 'voided' ? 0 : Math.max(0, row.balance_due_cents - refundedCents);
+  const amountPaid = row.status === 'voided' ? 0
+    : Math.max(0, row.amount_paid_cents - Math.max(0, refundedCents - row.balance_due_cents));
   return {
     id: row.id,
     saleNumber: row.sale_number,
@@ -99,19 +159,13 @@ export function mapSale(row, items = [], adjustments = []) {
     discountPercent: row.subtotal_cents ? row.discount_cents / row.subtotal_cents * 100 : 0,
     grandTotal: toMoney(row.total_cents),
     totalCrates: items.reduce((sum, item) => sum + item.crates, 0),
-    items: items.map(item => ({
-      productId: item.product_id,
-      name: item.product_name,
-      sizeLabel: item.size_label,
-      crates: item.crates,
-      unitPrice: toMoney(item.unit_price_cents),
-      lineTotal: toMoney(item.line_total_cents)
-    })),
+    netCrates: mappedItems.reduce((sum, item) => sum + item.netCrates, 0),
+    items: mappedItems,
     paymentMethod: row.payment_method,
     paymentDetails: {
       ...row.payment_details,
-      amountPaid: toMoney(Math.max(0, row.amount_paid_cents - Math.max(0, refundedCents - row.balance_due_cents))),
-      balanceDue: toMoney(Math.max(0, row.balance_due_cents - refundedCents))
+      amountPaid: toMoney(amountPaid),
+      balanceDue: toMoney(balanceDue)
     },
     refundedAmount: toMoney(refundedCents),
     netTotal: row.status === 'voided' ? 0 : Math.max(0, toMoney(row.total_cents) - toMoney(refundedCents)),

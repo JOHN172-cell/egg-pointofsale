@@ -1,14 +1,16 @@
-import { adminClient, authenticate, sendJson } from '../../server/backend.js';
+import { adminClient, cookieValue, sendJson, clearSessionCookies, assertSameOrigin } from '../../server/backend.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed.' });
-  const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (token) {
-    try {
-      await authenticate(req);
-      const { error } = await adminClient().auth.admin.signOut(token, 'global');
-      if (error) throw error;
-    } catch { /* The browser clears its session even if the token already expired. */ }
+  try {
+    assertSameOrigin(req);
+    const token = cookieValue(req, 'sylcat_access');
+    if (token) await adminClient().auth.admin.signOut(token, 'global');
+  } catch (error) {
+    if (error.statusCode === 403) return sendJson(res, 403, { error: error.message });
+    console.error('Unable to revoke POS session:', error.message);
+  } finally {
+    clearSessionCookies(res);
   }
   sendJson(res, 200, { ok: true });
 }

@@ -4,7 +4,7 @@
  * and Split Payments across two methods.
  */
 
-import { store, formatMoney } from './store.js';
+import { store, formatMoney, formatMoneyHtml, escapeHtml } from './store.js';
 
 export class PaymentModal {
   constructor(modalElement, onSaleCompleted) {
@@ -76,7 +76,7 @@ export class PaymentModal {
 
     const modalBody = this.modal.querySelector('.modal-body');
     const settings = store.getSettings();
-    const currency = settings.currencySymbol || 'GH₵';
+    const currency = escapeHtml(settings.currencySymbol || 'GH₵');
     const total = data.grandTotal;
 
     modalBody.innerHTML = `
@@ -86,10 +86,10 @@ export class PaymentModal {
           <span class="payment-total-label">AMOUNT PAYABLE</span>
           <div class="payment-total-figure">
             <span class="currency-sym">${currency}</span>
-            <span class="total-digits">${total.toFixed(2)}</span>
+            <span class="total-digits">${Number(total).toFixed(2)}</span>
           </div>
           <div class="payment-crate-count">
-            Total Crates: <strong>${data.totalCrates} Crate${data.totalCrates > 1 ? 's' : ''}</strong> (${data.priceType.toUpperCase()} PRICE)
+            Total Crates: <strong>${Number(data.totalCrates)} Crate${data.totalCrates > 1 ? 's' : ''}</strong> (${escapeHtml(data.priceType).toUpperCase()} PRICE)
           </div>
         </div>
 
@@ -161,10 +161,10 @@ export class PaymentModal {
 
           <!-- Quick Cash Denominations -->
           <div class="cash-quick-buttons">
-            <button type="button" class="btn-denom" data-amount="${total}">Exact (${formatMoney(total)})</button>
-            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 50) * 50}">${formatMoney(Math.ceil(total / 50) * 50)}</button>
-            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 100) * 100}">${formatMoney(Math.ceil(total / 100) * 100)}</button>
-            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 200) * 200 || 200}">${formatMoney(Math.ceil(total / 200) * 200 || 200)}</button>
+            <button type="button" class="btn-denom" data-amount="${Number(total)}">Exact (${formatMoneyHtml(total)})</button>
+            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 50) * 50}">${formatMoneyHtml(Math.ceil(total / 50) * 50)}</button>
+            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 100) * 100}">${formatMoneyHtml(Math.ceil(total / 100) * 100)}</button>
+            <button type="button" class="btn-denom" data-amount="${Math.ceil(total / 200) * 200 || 200}">${formatMoneyHtml(Math.ceil(total / 200) * 200 || 200)}</button>
             <button type="button" class="btn-denom" data-add="50">+50</button>
             <button type="button" class="btn-denom" data-add="100">+100</button>
           </div>
@@ -173,7 +173,7 @@ export class PaymentModal {
           <div class="cash-change-display ${underpaid ? 'is-underpaid' : 'is-sufficient'}">
             <div class="change-label">${underpaid ? 'Amount Short (Remaining Due)' : 'Change to Customer'}</div>
             <div class="change-amount">
-              ${underpaid ? formatMoney(total - this.amountTendered) : formatMoney(change)}
+              ${underpaid ? formatMoneyHtml(total - this.amountTendered) : formatMoneyHtml(change)}
             </div>
             <div class="change-status-tag">
               ${underpaid ? '<span class="status-badge status-out">Underpaid</span>' : '<span class="status-badge status-ok">Sufficient Cash</span>'}
@@ -183,7 +183,7 @@ export class PaymentModal {
             <label for="cash-customer-name" class="form-label">Customer Name <span class="required-star">*</span></label>
             <input type="text" id="cash-customer-name" class="form-control"
               placeholder="Full Customer or Business Name"
-              value="${this.currentSaleData.customerName || ''}" ${underpaid ? 'required' : ''}>
+              value="${escapeHtml(this.currentSaleData.customerName || '')}" ${underpaid ? 'required' : ''}>
           </div>
         </div>
       `;
@@ -213,16 +213,16 @@ export class PaymentModal {
           <div class="form-row">
             <div class="form-group form-col">
               <label for="momo-phone" class="form-label">Customer MoMo Number (Optional)</label>
-              <input type="tel" id="momo-phone" class="form-control" placeholder="e.g. 0244123456" value="${this.momoPhone}">
+              <input type="tel" id="momo-phone" class="form-control" placeholder="e.g. 0244123456" value="${escapeHtml(this.momoPhone)}">
             </div>
             <div class="form-group form-col">
               <label for="momo-ref" class="form-label">Transaction ID / Reference (Optional)</label>
-              <input type="text" id="momo-ref" class="form-control" placeholder="e.g. 1982736452" value="${this.momoRef}">
+              <input type="text" id="momo-ref" class="form-control" placeholder="e.g. 1982736452" value="${escapeHtml(this.momoRef)}">
             </div>
           </div>
 
           <div class="momo-summary-box">
-            <span>Direct prompt: Ensure customer has confirmed transaction of <strong>${formatMoney(total)}</strong> to Sylcat Farms.</span>
+            <span>Direct prompt: Ensure customer has confirmed transaction of <strong>${formatMoneyHtml(total)}</strong> to Sylcat Farms.</span>
           </div>
         </div>
       `;
@@ -233,11 +233,11 @@ export class PaymentModal {
         <div class="pay-panel-card">
           <div class="card-prompt-box">
             <div class="card-icon-big">💳</div>
-            <p>Insert or Tap customer card on POS terminal for <strong>${formatMoney(total)}</strong></p>
+            <p>Insert or Tap customer card on POS terminal for <strong>${formatMoneyHtml(total)}</strong></p>
           </div>
           <div class="form-group">
             <label for="card-ref" class="form-label">Approval Code / Slip Ref (Optional)</label>
-            <input type="text" id="card-ref" class="form-control" placeholder="e.g. APP-8849" value="${this.cardRef}">
+            <input type="text" id="card-ref" class="form-control" placeholder="e.g. APP-8849" value="${escapeHtml(this.cardRef)}">
           </div>
         </div>
       `;
@@ -248,7 +248,7 @@ export class PaymentModal {
         <div class="pay-panel-credit">
           <div class="alert alert-warning">
             <span class="alert-icon">⚠️</span>
-            <span><strong>Pay Later (Credit Sale):</strong> This transaction will be recorded with an outstanding balance of <strong>${formatMoney(total)}</strong>.</span>
+            <span><strong>Pay Later (Credit Sale):</strong> This transaction will be recorded with an outstanding balance of <strong>${formatMoneyHtml(total)}</strong>.</span>
           </div>
 
           <div class="form-group">
@@ -257,17 +257,17 @@ export class PaymentModal {
               id="credit-customer-name" 
               class="form-control" 
               placeholder="Full Customer or Business Name" 
-              value="${this.currentSaleData.customerName || ''}" required>
+              value="${escapeHtml(this.currentSaleData.customerName || '')}" required>
           </div>
 
           <div class="form-row">
             <div class="form-group form-col">
               <label for="credit-due-date" class="form-label">Expected Payment Due Date</label>
-              <input type="date" id="credit-due-date" class="form-control" value="${this.creditDueDate}">
+              <input type="date" id="credit-due-date" class="form-control" value="${escapeHtml(this.creditDueDate)}">
             </div>
             <div class="form-group form-col">
               <label for="credit-notes" class="form-label">Credit Notes / Agreement</label>
-              <input type="text" id="credit-notes" class="form-control" placeholder="e.g. Agreed to pay next Friday" value="${this.creditNotes}">
+              <input type="text" id="credit-notes" class="form-control" placeholder="e.g. Agreed to pay next Friday" value="${escapeHtml(this.creditNotes)}">
             </div>
           </div>
         </div>
@@ -277,7 +277,7 @@ export class PaymentModal {
     if (this.activeMethod === 'split') {
       return `
         <div class="pay-panel-split">
-          <p class="split-instruction">Divide the total payment of <strong>${formatMoney(total)}</strong> across two payment methods.</p>
+          <p class="split-instruction">Divide the total payment of <strong>${formatMoneyHtml(total)}</strong> across two payment methods.</p>
           ${this.splitMethod2 === 'credit' ? `
             <div class="alert alert-warning">
               <span class="alert-icon">⚠️</span>
@@ -319,15 +319,15 @@ export class PaymentModal {
           </div>
 
           <div class="split-balance-bar">
-            <span>Total Combined: <strong>${formatMoney(Number(this.splitAmount1) + Number(this.splitAmount2))}</strong></span>
-            <span>Difference: <strong>${formatMoney(total - (Number(this.splitAmount1) + Number(this.splitAmount2)))}</strong></span>
+            <span>Total Combined: <strong>${formatMoneyHtml(Number(this.splitAmount1) + Number(this.splitAmount2))}</strong></span>
+            <span>Difference: <strong>${formatMoneyHtml(total - (Number(this.splitAmount1) + Number(this.splitAmount2)))}</strong></span>
           </div>
           ${this.splitMethod2 === 'credit' ? `
             <div class="form-group">
               <label for="split-credit-customer-name" class="form-label">Customer Name <span class="required-star">*</span></label>
               <input type="text" id="split-credit-customer-name" class="form-control"
                 placeholder="Full Customer or Business Name"
-                value="${this.currentSaleData.customerName || ''}" required>
+                value="${escapeHtml(this.currentSaleData.customerName || '')}" required>
             </div>
           ` : ''}
         </div>

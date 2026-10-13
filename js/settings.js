@@ -7,6 +7,12 @@
 import { store } from './store.js';
 import { api } from './api.js';
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
 export class SettingsController {
   constructor() {
     this.container = null;
@@ -45,34 +51,34 @@ export class SettingsController {
 
             <div class="form-group">
               <label for="set-biz-name" class="form-label">Business Name <span class="required-star">*</span></label>
-              <input type="text" id="set-biz-name" class="form-control" value="${s.businessName}" required>
+              <input type="text" id="set-biz-name" class="form-control" value="${escapeHtml(s.businessName)}" required>
             </div>
 
             <div class="form-group">
               <label for="set-phone" class="form-label">Phone Number <span class="required-star">*</span></label>
-              <input type="text" id="set-phone" class="form-control" value="${s.phone}" required>
+              <input type="text" id="set-phone" class="form-control" value="${escapeHtml(s.phone)}" required>
             </div>
 
             <div class="form-group">
               <label for="set-address" class="form-label">Farm / Shop Address</label>
-              <input type="text" id="set-address" class="form-control" placeholder="e.g. Accra, Ghana (Leave blank or fill in)" value="${s.address || ''}">
+              <input type="text" id="set-address" class="form-control" placeholder="e.g. Accra, Ghana (Leave blank or fill in)" value="${escapeHtml(s.address || '')}">
               <small class="form-hint">Displayed on customer receipts if configured.</small>
             </div>
 
             <div class="form-row">
               <div class="form-group form-col">
                 <label for="set-currency" class="form-label">Currency Code</label>
-                <input type="text" id="set-currency" class="form-control" value="${s.currency || 'GHS'}">
+                <input type="text" id="set-currency" class="form-control" value="${escapeHtml(s.currency || 'GHS')}">
               </div>
               <div class="form-group form-col">
                 <label for="set-curr-sym" class="form-label">Currency Symbol</label>
-                <input type="text" id="set-curr-sym" class="form-control" value="${s.currencySymbol || 'GH₵'}">
+                <input type="text" id="set-curr-sym" class="form-control" value="${escapeHtml(s.currencySymbol || 'GH₵')}">
               </div>
             </div>
 
             <div class="form-group">
               <label for="set-cashier" class="form-label">Active Cashier Name</label>
-              <input type="text" id="set-cashier" class="form-control" value="${s.cashierName || 'Cashier 1'}">
+              <input type="text" id="set-cashier" class="form-control" value="${escapeHtml(s.cashierName || 'Cashier 1')}">
             </div>
           </div>
 
@@ -88,7 +94,7 @@ export class SettingsController {
               <div class="readonly-badge-box">
                 <span class="badge-icon">📦</span>
                 <div>
-                  <strong>${s.crateSize} Eggs Per Crate</strong>
+                  <strong>${Number(s.crateSize)} Eggs Per Crate</strong>
                   <p class="mb-0 text-muted">Full crates only policy strictly enforced across all sales and stock.</p>
                 </div>
               </div>
@@ -97,12 +103,12 @@ export class SettingsController {
             <div class="form-row">
               <div class="form-group form-col">
                 <label for="set-bulk-thresh" class="form-label">Bulk Discount Threshold (Crates)</label>
-                <input type="number" id="set-bulk-thresh" class="form-control" min="1" step="1" value="${s.bulkDiscountThreshold}">
+                <input type="number" id="set-bulk-thresh" class="form-control" min="1" step="1" value="${Number(s.bulkDiscountThreshold)}">
                 <small class="form-hint">Minimum crates required to trigger discount (e.g. 10).</small>
               </div>
               <div class="form-group form-col">
                 <label for="set-bulk-pct" class="form-label">Bulk Discount Percentage (%)</label>
-                <input type="number" id="set-bulk-pct" class="form-control" min="0" max="100" step="any" value="${s.bulkDiscountPercent}">
+                <input type="number" id="set-bulk-pct" class="form-control" min="0" max="100" step="any" value="${Number(s.bulkDiscountPercent)}">
                 <small class="form-hint">Percentage off total (e.g. 10%).</small>
               </div>
             </div>
@@ -136,7 +142,7 @@ export class SettingsController {
 
             <div class="settings-card-header">
               <h3>👥 Staff Accounts</h3>
-              <p>Administrators can create manager and cashier accounts. Managers can manage cashier accounts.</p>
+              <p>Only administrators can create accounts. Managers can view the staff list and manage cashier access.</p>
             </div>
             <div class="form-row">
               <div class="form-group form-col">
@@ -163,6 +169,13 @@ export class SettingsController {
             </div>
             <button type="button" class="btn btn-secondary" id="btn-create-staff">Create Staff Account</button>
             <div id="staff-account-list" class="staff-account-list" aria-live="polite"></div>
+
+            <hr class="my-4">
+            <div class="settings-card-header">
+              <h3>🧾 Administrative Audit Log</h3>
+              <p>Price, stock, settings, sale, refund and staff-account actions.</p>
+            </div>
+            <div id="audit-log-list" class="audit-log-list" aria-live="polite">Loading audit history…</div>
           </div>
         </form>
       </div>
@@ -255,6 +268,23 @@ export class SettingsController {
     }
 
     this.bindStaffManagement();
+    this.bindAuditLog();
+  }
+
+  async bindAuditLog() {
+    const list = this.container.querySelector('#audit-log-list');
+    if (!list) return;
+    try {
+      const { entries } = await api.get('/api/audit');
+      list.innerHTML = entries.length ? entries.map(entry => `
+        <div class="audit-log-row">
+          <time>${escapeHtml(new Date(entry.created_at).toLocaleString())}</time>
+          <strong>${escapeHtml(entry.action)}</strong>
+          <span>${escapeHtml(entry.actor?.display_name || 'Staff')} · ${escapeHtml(entry.entity_type)} ${escapeHtml(entry.entity_id)}</span>
+        </div>`).join('') : '<p>No administrative changes recorded.</p>';
+    } catch (error) {
+      list.textContent = error.message || 'Unable to load the audit log.';
+    }
   }
 
   async bindStaffManagement() {
@@ -269,13 +299,16 @@ export class SettingsController {
     if (role === 'manager') {
       const roleSelect = this.container.querySelector('#staff-role');
       roleSelect.innerHTML = '<option value="cashier">Cashier</option>';
+      createButton.hidden = true;
+      this.container.querySelector('#staff-password').closest('.form-group').hidden = true;
+      this.container.querySelector('#staff-role').closest('.form-group').hidden = true;
     }
     const loadStaff = async () => {
       const result = await api.get('/api/users');
       list.innerHTML = result.users.map(staff => `
         <div class="staff-account-row">
-          <span><strong>${staff.display_name}</strong> · ${staff.role}${staff.active ? '' : ' · Deactivated'}</span>
-          ${staff.role !== 'admin' ? `<button type="button" class="btn btn-sm btn-secondary" data-staff-id="${staff.id}" data-active="${staff.active}">${staff.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}
+          <span><strong>${escapeHtml(staff.display_name)}</strong> · ${escapeHtml(staff.role)}${staff.active ? '' : ' · Deactivated'}</span>
+          ${staff.role !== 'admin' ? `<button type="button" class="btn btn-sm btn-secondary" data-staff-id="${escapeHtml(staff.id)}" data-active="${staff.active}">${staff.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}
         </div>`).join('');
       list.querySelectorAll('[data-staff-id]').forEach(button => button.addEventListener('click', async () => {
         try {

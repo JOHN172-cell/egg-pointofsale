@@ -1,8 +1,9 @@
-import { publicClient, adminClient, readBody, sendJson, fail } from '../../server/backend.js';
+import { publicClient, adminClient, readBody, sendJson, fail, setSessionCookies, assertSameOrigin } from '../../server/backend.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed.' });
   try {
+    assertSameOrigin(req);
     const { email, password } = await readBody(req);
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
       return sendJson(res, 400, { error: 'Enter your email and password.' });
@@ -19,12 +20,8 @@ export default async function handler(req, res) {
       await client.auth.signOut({ scope: 'local' });
       return sendJson(res, 403, { error: 'This staff account is not active. Contact an administrator.' });
     }
-    sendJson(res, 200, {
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-      expires_at: data.session.expires_at,
-      user: { id: profile.id, name: profile.display_name, role: profile.role }
-    });
+    setSessionCookies(res, data.session);
+    sendJson(res, 200, { user: { id: profile.id, name: profile.display_name, role: profile.role } });
   } catch (error) {
     fail(res, error);
   }

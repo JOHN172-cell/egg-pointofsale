@@ -141,6 +141,29 @@
   border-radius: var(--radius-sm);
 }
 
+.audit-log-list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.audit-log-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(8rem, 1fr) minmax(12rem, 2fr);
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 700px) {
+  .audit-log-row {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}
+
 /* Dark Theme Overrides */
 [data-theme="dark"] {
   --color-bg: #141412;              /* Off-black background */

@@ -39,6 +39,9 @@ Web POS for whole egg crates (30 eggs per crate), with cash, mobile-money, card-
 
    ```sh
    npm install
+   npm install --global vercel
+   vercel login
+   vercel link
    npm run create-admin
    ```
 
@@ -51,7 +54,7 @@ Web POS for whole egg crates (30 eggs per crate), with cash, mobile-money, card-
 
    Open the local URL printed by Vercel and sign in. Do not use `vite preview` for API testing; it serves static files only.
 6. On the first administrator's device, open **Settings** and select either **Migrate This Browser's Local Data** (the prior browser's localStorage data) or **Migrate Older Shared Database** (the previous shared `pos_*` tables). Each is a one-time import into an empty normalized database. Back up important local data before migrating; the browser's original localStorage is kept unchanged.
-7. Create cashier/manager accounts from **Settings → Staff Accounts**. Share temporary passwords securely and ask staff to change them outside this POS before use.
+7. Create cashier/manager accounts from **Settings → Staff Accounts**. Share temporary passwords securely. Administrators can reset a password in Supabase **Authentication → Users**.
 
 ### 3. Deploy to Vercel
 

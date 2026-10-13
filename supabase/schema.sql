@@ -109,9 +109,11 @@ create table if not exists public.sale_adjustments (
   adjustment_type text not null check (adjustment_type in ('refund', 'void')),
   amount_cents bigint not null check (amount_cents >= 0),
   reason text not null,
+  returned_items jsonb not null default '[]'::jsonb,
   actor_id uuid not null references public.profiles(id) on delete restrict,
   created_at timestamptz not null default now()
 );
+alter table public.sale_adjustments add column if not exists returned_items jsonb not null default '[]'::jsonb;
 create index if not exists sale_adjustments_sale_id_idx on public.sale_adjustments (sale_id);
 
 create table if not exists public.pos_settings (
@@ -223,7 +225,7 @@ create policy "settings_manager_write" on public.pos_settings for all to authent
   using (public.has_pos_role(array['manager','admin'])) with check (public.has_pos_role(array['manager','admin']));
 drop policy if exists "audit_read_admin" on public.audit_log;
 create policy "audit_read_admin" on public.audit_log for select to authenticated
-  using (public.has_pos_role(array['admin']));
+  using (public.has_pos_role(array['manager','admin']));
 
 revoke all on public.profiles, public.categories, public.products, public.inventory,
   public.sales, public.sale_items, public.payments, public.stock_movements,
@@ -501,7 +503,13 @@ returns void
 language plpgsql security definer
 set search_path = ''
 as $$
-declare v_sale public.sales%rowtype; v_item jsonb; v_line public.sale_items%rowtype; v_before integer; v_after integer;
+declare
+  v_sale public.sales%rowtype;
+  v_item jsonb;
+  v_line public.sale_items%rowtype;
+  v_before integer;
+  v_after integer;
+  v_already_returned integer;
 begin
   if auth.uid() is null or not public.has_pos_role(array['manager','admin']) then raise exception 'Not authorized'; end if;
   select * into v_sale from public.sales where id=p_sale_id for update;
@@ -531,15 +539,23 @@ begin
   loop
     select * into v_line from public.sale_items where sale_id=p_sale_id and product_id=v_item->>'productId';
     if not found or (v_item->>'crates') !~ '^[1-9][0-9]*$'
-      or (v_item->>'crates')::integer > v_line.crates then raise exception 'Invalid returned crate quantity'; end if;
+      then raise exception 'Invalid returned crate quantity'; end if;
+    select coalesce(sum((returned.value->>'crates')::integer),0) into v_already_returned
+      from public.sale_adjustments prior
+      cross join lateral jsonb_array_elements(prior.returned_items) returned(value)
+      where prior.sale_id=p_sale_id and returned.value->>'productId'=v_line.product_id;
+    if (v_item->>'crates')::integer > v_line.crates - v_already_returned then
+      raise exception 'Returned crates exceed the quantity still eligible for return';
+    end if;
     select crates into v_before from public.inventory where product_id=v_line.product_id for update;
     v_after := v_before + (v_item->>'crates')::integer;
     update public.inventory set crates=v_after,updated_at=now() where product_id=v_line.product_id;
     insert into public.stock_movements(product_id,movement_type,crates_delta,previous_crates,new_crates,reason,reference,actor_id)
     values(v_line.product_id,'refund',(v_item->>'crates')::integer,v_before,v_after,left(trim(p_reason),500),v_sale.sale_number,auth.uid());
   end loop;
-  insert into public.sale_adjustments(sale_id,adjustment_type,amount_cents,reason,actor_id)
-  values(p_sale_id,case when p_void then 'void' else 'refund' end,p_amount_cents,left(trim(p_reason),500),auth.uid());
+  insert into public.sale_adjustments(sale_id,adjustment_type,amount_cents,reason,returned_items,actor_id)
+  values(p_sale_id,case when p_void then 'void' else 'refund' end,p_amount_cents,left(trim(p_reason),500),
+    coalesce(p_return_items,'[]'::jsonb),auth.uid());
   update public.sales set status=case when p_void then 'voided'
     when coalesce((select sum(amount_cents) from public.sale_adjustments
       where sale_id=p_sale_id and adjustment_type='refund'),0) >= total_cents then 'refunded'
@@ -580,8 +596,8 @@ language plpgsql security definer
 set search_path = ''
 as $$
 begin
-  if auth.uid() is null or not public.has_pos_role(array['manager','admin']) then raise exception 'Not authorized'; end if;
-  if p_role not in ('cashier','manager') or (p_role='manager' and not public.has_pos_role(array['admin']))
+  if auth.uid() is null or not public.has_pos_role(array['admin']) then raise exception 'Not authorized'; end if;
+  if p_role not in ('cashier','manager')
     or length(trim(coalesce(p_display_name,''))) not between 1 and 120 then
     raise exception 'Invalid staff profile';
   end if;
