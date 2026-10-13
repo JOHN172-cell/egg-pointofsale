@@ -913,10 +913,12 @@ button {
   left: 0.85rem;
   font-weight: 800;
   color: var(--color-text-muted);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .input-with-symbol .form-control {
-  padding-left: 2.25rem;
+  padding-left: 3.75rem;
 }
 
 .btn {
@@ -1182,10 +1184,20 @@ button {
 }
 
 .payment-total-figure {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 0.12em;
   font-size: 2.75rem;
   font-weight: 900;
   line-height: 1.1;
   color: var(--color-brand);
+}
+
+.payment-total-figure .currency-sym,
+.payment-total-figure .total-digits {
+  white-space: nowrap;
 }
 
 .payment-crate-count {
@@ -2701,4 +2713,3 @@ button {
     color: #333 !important;
   }
 }
-

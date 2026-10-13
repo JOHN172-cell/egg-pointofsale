@@ -15,7 +15,7 @@ const STORAGE_KEYS = {
 
 const DEFAULT_SETTINGS = {
   businessName: 'Sylcat Farms',
-  phone: '022606689',
+  phone: '0244606689',
   address: '', // Blank initially as configured by user
   currency: 'GHS',
   currencySymbol: 'GH₵',
@@ -96,6 +96,10 @@ class Store {
 
   init() {
     this.settings = this.load(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
+    if (this.settings.phone === '022606689') {
+      this.settings.phone = DEFAULT_SETTINGS.phone;
+      this.save(STORAGE_KEYS.SETTINGS, this.settings);
+    }
     this.products = this.load(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
     this.sales = this.load(STORAGE_KEYS.SALES, []);
     this.stockLogs = this.load(STORAGE_KEYS.STOCK_LOGS, []);

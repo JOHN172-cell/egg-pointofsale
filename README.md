@@ -24,7 +24,7 @@ A fast, lightweight, and modern web-based Point of Sale (POS) and inventory trac
 - **Split Payment**: Split a single bill across two payment methods (e.g. Cash + MoMo), or record the second part as a named client's balance due.
 
 ### 🧾 Receipts
-- **Header**: Sylcat Farms branding, phone number `022606689`, and optional farm address.
+- **Header**: Sylcat Farms branding, phone number `0244606689`, and optional farm address.
 - **Details**: Sale ID, date/time, cashier name, customer name, crate breakdown, totals, amount paid, and balance due.
 - **Client balance**: Shows all unpaid invoices and the client's total outstanding balance on receipts.
 - **Actions**:
