@@ -75,6 +75,10 @@ export class ReportsController {
 
     const isToday = this.selectedDate === new Date().toISOString().slice(0, 10);
 
+    // Compute ALL outstanding credits (across all dates, not just selected)
+    const outstandingClients = store.getAllOutstandingCredits();
+    const totalOutstandingAll = outstandingClients.reduce((sum, c) => sum + c.totalOwed, 0);
+
     this.container.innerHTML = `
       <div class="reports-view-layout">
         <!-- Date Header & Filter -->
@@ -123,9 +127,9 @@ export class ReportsController {
           <div class="stat-card">
             <span class="stat-icon">⏳</span>
             <div class="stat-details">
-              <span class="stat-title">Outstanding Credit (Pay Later)</span>
-              <span class="stat-number text-warning"><strong>${formatMoney(paymentTotals['Pay Later (Credit)'])}</strong></span>
-              <span class="stat-hint">Customer credit to collect</span>
+              <span class="stat-title">Total Revenue Owed</span>
+              <span class="stat-number text-warning"><strong>${formatMoney(totalOutstandingAll)}</strong></span>
+              <span class="stat-hint">${outstandingClients.length} client${outstandingClients.length !== 1 ? 's' : ''} with unpaid credit</span>
             </div>
           </div>
         </div>
@@ -191,6 +195,74 @@ export class ReportsController {
           </div>
         </div>
 
+        <!-- ======== REVENUE OWED — OUTSTANDING CREDITS SECTION ======== -->
+        <div class="reports-outstanding-section">
+          <div class="section-header">
+            <div>
+              <h3>💸 Revenue Owed — Outstanding Credits</h3>
+              <p class="section-sub">All unpaid credit sales across all dates. Shows who owes how much and when payment is due.</p>
+            </div>
+            <span class="badge-total-warning">${formatMoney(totalOutstandingAll)} Total Owed</span>
+          </div>
+
+          ${outstandingClients.length === 0 ? `
+            <div class="empty-outstanding-box">
+              <span class="empty-icon">✅</span>
+              <p><strong>No outstanding credits!</strong></p>
+              <p class="text-muted">All credit sales have been settled. Great job!</p>
+            </div>
+          ` : `
+            <div class="outstanding-clients-grid">
+              ${outstandingClients.map(client => `
+                <div class="outstanding-client-card">
+                  <div class="client-card-header">
+                    <div class="client-identity">
+                      <span class="client-avatar">👤</span>
+                      <div>
+                        <strong class="client-name">${client.clientName}</strong>
+                        ${client.clientPhone ? `<span class="client-phone">📞 ${client.clientPhone}</span>` : ''}
+                      </div>
+                    </div>
+                    <div class="client-owed-badge">
+                      <span class="owed-label">OWES</span>
+                      <span class="owed-amount">${formatMoney(client.totalOwed)}</span>
+                    </div>
+                  </div>
+
+                  <div class="client-invoices-table">
+                    <table class="mini-table">
+                      <thead>
+                        <tr>
+                          <th>Invoice #</th>
+                          <th>Date</th>
+                          <th>Amount</th>
+                          <th>Due Date</th>
+                          <th class="no-print">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${client.sales.map(cs => `
+                          <tr>
+                            <td><strong>${cs.saleNumber}</strong></td>
+                            <td>${new Date(cs.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                            <td><strong>${formatMoney(cs.amount)}</strong></td>
+                            <td>${cs.dueDate || '<span class="text-muted">Not set</span>'}</td>
+                            <td class="no-print">
+                              <button type="button" class="btn btn-sm btn-success btn-mark-paid" data-salenum="${cs.saleNumber}" title="Mark this invoice as paid">
+                                ✅ Mark Paid
+                              </button>
+                            </td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
         <!-- Sales Transaction History for Selected Date -->
         <div class="reports-sales-section">
           <div class="section-header">
@@ -223,16 +295,20 @@ export class ReportsController {
                 ` : sales.map(s => {
                   const itemsSummary = s.items.map(i => `${i.crates}× ${i.name}`).join(', ');
                   const method = s.paymentDetails?.method || s.paymentMethod;
+                  const isCredit = method === 'Pay Later (Credit)' && s.status !== 'PAID';
 
                   return `
-                    <tr>
+                    <tr class="${isCredit ? 'row-credit-owed' : ''}">
                       <td><strong>${s.saleNumber}</strong></td>
                       <td>${new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                       <td>${s.customerName ? s.customerName : '<span class="text-muted">Walk-in</span>'}</td>
                       <td><span class="badge-price-type ${s.priceType}">${s.priceType.toUpperCase()}</span></td>
                       <td class="td-items-summary" title="${itemsSummary}">${itemsSummary}</td>
                       <td><strong>${s.totalCrates} cr</strong></td>
-                      <td><span class="status-badge status-ok">${method}</span></td>
+                      <td>
+                        <span class="status-badge ${isCredit ? 'status-warning' : 'status-ok'}">${method}</span>
+                        ${s.status === 'PAID' ? '<span class="badge-paid">PAID</span>' : ''}
+                      </td>
                       <td><strong>${formatMoney(s.grandTotal)}</strong></td>
                       <td class="text-right no-print">
                         <button type="button" class="btn btn-sm btn-secondary btn-reprint-receipt" data-salenum="${s.saleNumber}">
@@ -278,6 +354,20 @@ export class ReportsController {
         window.print();
       });
     }
+
+    // Mark Credit Paid buttons (Outstanding Credits section)
+    this.container.querySelectorAll('.btn-mark-paid').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const saleNum = btn.getAttribute('data-salenum');
+        if (saleNum) {
+          const confirmed = confirm(`Mark invoice ${saleNum} as PAID?\nThis will remove it from outstanding credits.`);
+          if (confirmed) {
+            store.markCreditPaid(saleNum);
+            this.render();
+          }
+        }
+      });
+    });
 
     // Reprint receipt buttons
     this.container.querySelectorAll('.btn-reprint-receipt').forEach(btn => {

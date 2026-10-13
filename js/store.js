@@ -479,6 +479,74 @@ class Store {
     return this.sales.find(s => s.saleNumber === saleNumber);
   }
 
+  /**
+   * Returns all credit ("Pay Later") sales that have NOT been marked as paid.
+   * Groups by customer name and sums outstanding amounts.
+   */
+  getAllOutstandingCredits() {
+    const creditSales = this.sales.filter(s => {
+      const method = s.paymentDetails?.method || s.paymentMethod;
+      return method === 'Pay Later (Credit)' && s.status !== 'PAID';
+    });
+
+    // Group by customer name (normalised lowercase for matching)
+    const clientMap = {};
+    creditSales.forEach(sale => {
+      const clientKey = (sale.customerName || 'Unknown Client').trim();
+      const normKey = clientKey.toLowerCase();
+      if (!clientMap[normKey]) {
+        clientMap[normKey] = {
+          clientName: clientKey,
+          clientPhone: sale.customerPhone || '',
+          totalOwed: 0,
+          sales: []
+        };
+      }
+      // Keep the most detailed name/phone
+      if (sale.customerPhone && !clientMap[normKey].clientPhone) {
+        clientMap[normKey].clientPhone = sale.customerPhone;
+      }
+      clientMap[normKey].totalOwed += sale.grandTotal;
+      clientMap[normKey].sales.push({
+        saleNumber: sale.saleNumber,
+        date: sale.timestamp,
+        amount: sale.grandTotal,
+        dueDate: sale.paymentDetails?.dueDate || null
+      });
+    });
+
+    return Object.values(clientMap).sort((a, b) => b.totalOwed - a.totalOwed);
+  }
+
+  /**
+   * Returns the total outstanding credit owed by a specific client name.
+   */
+  getClientTotalOwed(clientName) {
+    if (!clientName || !clientName.trim()) return 0;
+    const normName = clientName.trim().toLowerCase();
+    return this.sales
+      .filter(s => {
+        const method = s.paymentDetails?.method || s.paymentMethod;
+        return method === 'Pay Later (Credit)'
+          && s.status !== 'PAID'
+          && (s.customerName || '').trim().toLowerCase() === normName;
+      })
+      .reduce((sum, s) => sum + s.grandTotal, 0);
+  }
+
+  /**
+   * Marks a credit sale as PAID (settled).
+   */
+  markCreditPaid(saleNumber) {
+    const sale = this.getSaleByNumber(saleNumber);
+    if (!sale) return false;
+    sale.status = 'PAID';
+    sale.paidTimestamp = new Date().toISOString();
+    this.save(STORAGE_KEYS.SALES, this.sales);
+    this.notify('SALE_RECORDED', sale); // re-use event to trigger re-render
+    return true;
+  }
+
   // Theme
   getTheme() {
     return this.theme;

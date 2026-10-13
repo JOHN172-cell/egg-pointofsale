@@ -2124,6 +2124,372 @@ button {
 }
 
 /* ==========================================================================
+   15.5. Revenue Owed — Outstanding Credits Section
+   ========================================================================== */
+.reports-outstanding-section {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.badge-total-warning {
+  font-size: 0.85rem;
+  font-weight: 800;
+  background-color: #FEF3C7;
+  color: #92400E;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid #F59E0B;
+}
+
+.text-warning {
+  color: #D97706 !important;
+}
+
+.outstanding-clients-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.outstanding-client-card {
+  background-color: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.outstanding-client-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.client-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border-bottom: 1px solid #F59E0B;
+}
+
+[data-theme="dark"] .client-card-header {
+  background: linear-gradient(135deg, #451A03 0%, #78350F 100%);
+  border-bottom-color: #92400E;
+}
+
+.client-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.client-avatar {
+  font-size: 1.5rem;
+}
+
+.client-name {
+  font-size: 1rem;
+  display: block;
+  color: #1E293B;
+}
+
+[data-theme="dark"] .client-name {
+  color: #FEF3C7;
+}
+
+.client-phone {
+  font-size: 0.78rem;
+  color: #78350F;
+  display: block;
+  margin-top: 0.1rem;
+}
+
+[data-theme="dark"] .client-phone {
+  color: #FDE68A;
+}
+
+.client-owed-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.owed-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #991B1B;
+  background-color: #FEE2E2;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+
+[data-theme="dark"] .owed-label {
+  background-color: #7F1D1D;
+  color: #FCA5A5;
+}
+
+.owed-amount {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #991B1B;
+}
+
+[data-theme="dark"] .owed-amount {
+  color: #FCA5A5;
+}
+
+.client-invoices-table {
+  padding: 0.75rem 1rem;
+}
+
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.mini-table th {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.mini-table td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mini-table tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-outstanding-box {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--color-text-secondary);
+}
+
+.empty-outstanding-box .empty-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.row-credit-owed {
+  background-color: var(--color-warning-bg) !important;
+}
+
+.status-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-pill);
+  display: inline-block;
+}
+
+.status-ok {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.status-warning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.status-out {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.badge-paid {
+  font-size: 0.68rem;
+  font-weight: 800;
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.35rem;
+}
+
+.badge-price-type {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+}
+
+.badge-price-type.retail {
+  background-color: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.badge-price-type.wholesale {
+  background-color: #D1FAE5;
+  color: #059669;
+}
+
+.td-items-summary {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   15.6. Receipt — Client Account Balance Section
+   ========================================================================== */
+.receipt-client-balance {
+  background-color: #FEF2F2;
+  border: 2px solid #F87171;
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+  margin-top: 0.5rem;
+}
+
+.a4-client-balance {
+  padding: 1.25rem 1.5rem;
+}
+
+.client-balance-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #FECACA;
+}
+
+.balance-alert-icon {
+  font-size: 1.2rem;
+}
+
+.balance-title {
+  font-weight: 900;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  color: #991B1B;
+}
+
+.client-balance-identity {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.balance-client-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: #1E293B;
+}
+
+.balance-phone {
+  font-size: 0.78rem;
+  color: #64748B;
+}
+
+.balance-label {
+  font-weight: 600;
+  color: #64748B;
+  font-size: 0.82rem;
+}
+
+.balance-total-owed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+
+.balance-amount-big {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #991B1B;
+  line-height: 1.1;
+}
+
+.client-balance-invoices {
+  margin-bottom: 0.75rem;
+}
+
+.balance-invoices-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #991B1B;
+  margin-bottom: 0.35rem;
+}
+
+.balance-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.balance-mini-table th {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #991B1B;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #FECACA;
+  text-align: left;
+}
+
+.balance-mini-table td {
+  padding: 0.3rem 0.5rem;
+  color: #1E293B;
+  border-bottom: 1px solid #FEE2E2;
+}
+
+.balance-mini-table tr:last-child td {
+  border-bottom: none;
+}
+
+.balance-notice {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: #B91C1C;
+  text-align: center;
+  padding-top: 0.5rem;
+  border-top: 1px solid #FECACA;
+}
+
+@media (max-width: 500px) {
+  .outstanding-clients-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-balance-identity {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .balance-total-owed {
+    align-items: flex-start;
+  }
+}
+
+/* ==========================================================================
    16. Settings Screen
    ========================================================================== */
 .settings-view-layout {
@@ -2314,6 +2680,25 @@ button {
   .receipt-paper.thermal-mode .invoice-signatures-block {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
+  }
+
+  /* Client balance on receipt prints with visible borders */
+  .receipt-client-balance {
+    border: 2px solid #000 !important;
+    background-color: #FFF5F5 !important;
+    page-break-inside: avoid !important;
+  }
+
+  .balance-amount-big {
+    color: #000 !important;
+  }
+
+  .balance-title {
+    color: #000 !important;
+  }
+
+  .balance-notice {
+    color: #333 !important;
   }
 }
 

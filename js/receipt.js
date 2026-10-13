@@ -109,6 +109,31 @@ export class ReceiptModal {
     }
 
     lines.push('================================');
+
+    // Client outstanding balance (if any)
+    const clientName = (sale.customerName || '').trim();
+    if (clientName) {
+      const outstandingClients = store.getAllOutstandingCredits();
+      const normName = clientName.toLowerCase();
+      const clientData = outstandingClients.find(c => c.clientName.toLowerCase() === normName);
+      if (clientData && clientData.totalOwed > 0) {
+        lines.push('');
+        lines.push('⚠️  CLIENT ACCOUNT — OUTSTANDING BALANCE');
+        lines.push('--------------------------------');
+        lines.push(`Client:         ${clientData.clientName}`);
+        lines.push(`Total Owed:     ${sym} ${clientData.totalOwed.toFixed(2)}`);
+        lines.push(`Unpaid Invoices: ${clientData.sales.length}`);
+        clientData.sales.forEach(cs => {
+          const dateStr = new Date(cs.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+          lines.push(`  • ${cs.saleNumber} — ${dateStr} — ${sym} ${cs.amount.toFixed(2)}`);
+        });
+        lines.push('');
+        lines.push('Please settle outstanding invoices');
+        lines.push('at your earliest convenience.');
+        lines.push('================================');
+      }
+    }
+
     lines.push('SIGNATURES / ACKNOWLEDGMENT:');
     lines.push('Manager Signature: __________________');
     lines.push('Client Signature:  __________________');
@@ -348,6 +373,8 @@ export class ReceiptModal {
             </div>
           </div>
 
+          ${this.renderClientBalanceSection(sale)}
+
           <!-- DEDICATED SIGNATURE SECTION FOR MANAGER AND CLIENT -->
           <div class="receipt-divider signature-divider"></div>
 
@@ -413,6 +440,75 @@ export class ReceiptModal {
     `;
 
     this.bindEvents(sale, settings);
+  }
+
+  /**
+   * Renders a client account balance section on the receipt.
+   * Shows total outstanding debt if the client has any unpaid credit sales.
+   */
+  renderClientBalanceSection(sale) {
+    // Only show if the client has a name (otherwise we can't look up debt)
+    const clientName = (sale.customerName || '').trim();
+    if (!clientName) return '';
+
+    const outstandingClients = store.getAllOutstandingCredits();
+    const normName = clientName.toLowerCase();
+    const clientData = outstandingClients.find(c => c.clientName.toLowerCase() === normName);
+
+    // If client has no outstanding credits, don't show the section
+    if (!clientData || clientData.totalOwed <= 0) return '';
+
+    const settings = store.getSettings();
+    const isA4 = this.printFormat === 'a4';
+
+    return `
+      <div class="receipt-divider"></div>
+      <div class="receipt-client-balance ${isA4 ? 'a4-client-balance' : ''}">
+        <div class="client-balance-header">
+          <span class="balance-alert-icon">⚠️</span>
+          <span class="balance-title">CLIENT ACCOUNT — OUTSTANDING BALANCE</span>
+        </div>
+        <div class="client-balance-identity">
+          <div class="balance-client-name">
+            <span class="balance-label">Client:</span>
+            <strong>${clientData.clientName}</strong>
+            ${clientData.clientPhone ? `<span class="balance-phone">📞 ${clientData.clientPhone}</span>` : ''}
+          </div>
+          <div class="balance-total-owed">
+            <span class="balance-label">Total Amount Owed:</span>
+            <span class="balance-amount-big">${formatMoney(clientData.totalOwed)}</span>
+          </div>
+        </div>
+
+        <div class="client-balance-invoices">
+          <div class="balance-invoices-label">${clientData.sales.length} Unpaid Invoice${clientData.sales.length !== 1 ? 's' : ''}:</div>
+          <table class="balance-mini-table">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Date</th>
+                <th>Amount</th>
+                ${isA4 ? '<th>Due Date</th>' : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${clientData.sales.map(cs => `
+                <tr>
+                  <td><strong>${cs.saleNumber}</strong></td>
+                  <td>${new Date(cs.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                  <td><strong>${formatMoney(cs.amount)}</strong></td>
+                  ${isA4 ? `<td>${cs.dueDate || 'Not set'}</td>` : ''}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="balance-notice">
+          Please settle outstanding invoices at your earliest convenience. Thank you!
+        </div>
+      </div>
+    `;
   }
 
   bindEvents(sale, settings) {
