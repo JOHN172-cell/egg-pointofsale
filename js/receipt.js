@@ -57,6 +57,7 @@ export class ReceiptModal {
     lines.push('     * OFFICIAL INVOICE / RECEIPT *');
     lines.push('       FULL CRATES ONLY (30 EGGS)');
     lines.push(`Phone: ${settings.phone}`);
+    lines.push('MoMo:  0552955360');
     if (settings.address && settings.address.trim()) {
       lines.push(`Address: ${settings.address}`);
     }
@@ -177,6 +178,7 @@ export class ReceiptModal {
 
             <div class="receipt-contact">
               <div><strong>Phone:</strong> ${settings.phone}</div>
+              <div><strong>MoMo:</strong> 0552955360</div>
               ${settings.address && settings.address.trim() ? `<div><strong>Farm Address:</strong> ${settings.address}</div>` : ''}
             </div>
           </div>
