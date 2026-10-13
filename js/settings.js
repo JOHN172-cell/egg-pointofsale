@@ -16,7 +16,7 @@ export class SettingsController {
     this.render();
 
     store.subscribe((event) => {
-      if (['SETTINGS_UPDATED', 'STATE_RESET'].includes(event)) {
+      if (['SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.render();
       }
     });
@@ -122,6 +122,10 @@ export class SettingsController {
               <button type="button" class="btn btn-secondary" id="btn-export-backup">
                 <span>📥 Export Data (JSON)</span>
               </button>
+              <button type="button" class="btn btn-secondary" id="btn-import-backup">
+                <span>📤 Import Backup to Shared POS</span>
+              </button>
+              <input type="file" id="input-import-backup" accept=".json,application/json" hidden>
               <button type="button" class="btn btn-outline-danger" id="btn-reset-demo">
                 <span>🔄 Reset to Fresh Demo Data</span>
               </button>
@@ -137,7 +141,7 @@ export class SettingsController {
   bindEvents() {
     const form = this.container.querySelector('#form-settings-update');
     if (form) {
-      form.addEventListener('submit', (e) => {
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const bizName = this.container.querySelector('#set-biz-name').value.trim();
         const phone = this.container.querySelector('#set-phone').value.trim();
@@ -148,18 +152,21 @@ export class SettingsController {
         const bulkThreshold = Number(this.container.querySelector('#set-bulk-thresh').value) || 10;
         const bulkPercent = Number(this.container.querySelector('#set-bulk-pct').value) || 10;
 
-        store.updateSettings({
-          businessName: bizName,
-          phone,
-          address,
-          currency,
-          currencySymbol,
-          cashierName,
-          bulkDiscountThreshold: bulkThreshold,
-          bulkDiscountPercent: bulkPercent
-        });
-
-        alert('Settings saved successfully!');
+        try {
+          await store.updateSettings({
+            businessName: bizName,
+            phone,
+            address,
+            currency,
+            currencySymbol,
+            cashierName,
+            bulkDiscountThreshold: bulkThreshold,
+            bulkDiscountPercent: bulkPercent
+          });
+          alert('Settings saved successfully!');
+        } catch (error) {
+          alert(error.message || 'Unable to save settings');
+        }
       });
     }
 
@@ -184,13 +191,40 @@ export class SettingsController {
       });
     }
 
+    const btnImport = this.container.querySelector('#btn-import-backup');
+    const inputImport = this.container.querySelector('#input-import-backup');
+    if (btnImport && inputImport) {
+      btnImport.addEventListener('click', () => inputImport.click());
+      inputImport.addEventListener('change', async () => {
+        const file = inputImport.files[0];
+        if (!file) return;
+        try {
+          const backup = JSON.parse(await file.text());
+          if (!confirm('Importing this backup will replace shared settings, products, stock, sales, and movement history for every staff member. Continue?')) {
+            inputImport.value = '';
+            return;
+          }
+          await store.importBackup(backup);
+          alert('Backup imported into the shared POS successfully.');
+        } catch (error) {
+          alert(error.message || 'Unable to import backup');
+        } finally {
+          inputImport.value = '';
+        }
+      });
+    }
+
     // Reset Demo Data
     const btnReset = this.container.querySelector('#btn-reset-demo');
     if (btnReset) {
-      btnReset.addEventListener('click', () => {
-        if (confirm('Are you sure you want to reset all data to default demo state? All current sales and adjustments will be reinitialized.')) {
-          store.resetDemoData();
-          alert('Data has been reset to defaults.');
+      btnReset.addEventListener('click', async () => {
+        if (confirm('Reset shared POS data for every staff member? This permanently clears all shared sales and adjustments.')) {
+          try {
+            await store.resetDemoData();
+            alert('Shared POS data has been reset to defaults for all staff.');
+          } catch (error) {
+            alert(error.message || 'Unable to reset shared POS data');
+          }
         }
       });
     }

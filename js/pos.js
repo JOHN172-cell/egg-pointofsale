@@ -22,7 +22,7 @@ export class PosController {
 
     // Subscribe to store updates (e.g. stock changes, settings changes)
     store.subscribe((event) => {
-      if (['PRODUCTS_UPDATED', 'STOCK_UPDATED', 'SETTINGS_UPDATED', 'STATE_RESET'].includes(event)) {
+      if (['PRODUCTS_UPDATED', 'STOCK_UPDATED', 'SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.syncCartWithProducts();
         this.render();
       }

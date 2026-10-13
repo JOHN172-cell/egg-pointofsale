@@ -19,7 +19,7 @@ export class ReportsController {
     this.render();
 
     store.subscribe((event) => {
-      if (['SALE_RECORDED', 'SETTINGS_UPDATED', 'STATE_RESET'].includes(event)) {
+      if (['SALE_RECORDED', 'SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.render();
       }
     });
@@ -364,13 +364,17 @@ export class ReportsController {
 
     // Mark outstanding balances as paid
     this.container.querySelectorAll('.btn-mark-paid').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const saleNum = btn.getAttribute('data-salenum');
         if (saleNum) {
           const confirmed = confirm(`Mark invoice ${saleNum} as PAID?\nThis will remove it from outstanding credits.`);
           if (confirmed) {
-            store.markCreditPaid(saleNum);
-            this.render();
+            try {
+              await store.markCreditPaid(saleNum);
+              this.render();
+            } catch (error) {
+              alert(error.message || 'Unable to mark balance as paid');
+            }
           }
         }
       });

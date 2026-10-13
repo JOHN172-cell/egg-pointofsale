@@ -20,16 +20,46 @@ class App {
     this.products = new ProductsController();
     this.reports = new ReportsController();
     this.settings = new SettingsController();
+    this.initialized = false;
+    this.enteringApp = null;
   }
 
-  start() {
-    // 1. Initialize Theme
+  async start() {
+    try {
+      await this.enterApp();
+    } catch (error) {
+      console.error('Unable to open shared POS:', error);
+      this.showAppError(`Unable to connect to the shared database: ${error.message}`);
+    }
+  }
+
+  showAppError(message) {
+    const errorBox = document.getElementById('app-error-banner');
+    errorBox.textContent = message;
+    errorBox.hidden = !message;
+  }
+
+  async enterApp() {
+    if (this.initialized) {
+      return;
+    }
+    if (this.enteringApp) return this.enteringApp;
+    this.enteringApp = this.initializeApp();
+    try {
+      await this.enteringApp;
+    } finally {
+      this.enteringApp = null;
+    }
+  }
+
+  async initializeApp() {
+    const isShared = await store.connectToSharedDatabase();
+    this.initialized = true;
+    if (!isShared) {
+      this.showAppError('Local mode: Supabase is not configured. Stock and sales work on this browser only and will not sync to other PCs.');
+    }
     store.applyTheme(store.getTheme());
 
-    // 2. Initialize Seed Data for demo if brand new
-    this.seedDemoSalesIfEmpty();
-
-    // 3. Initialize Modals
     const paymentModalEl = document.getElementById('modal-payment');
     const receiptModalEl = document.getElementById('modal-receipt');
     this.paymentModal = new PaymentModal(paymentModalEl, (completedSale) => {
@@ -39,7 +69,6 @@ class App {
     });
     this.receiptModal = new ReceiptModal(receiptModalEl);
 
-    // 4. Initialize Controllers with Containers
     this.pos.init(
       document.getElementById('view-pos'),
       (saleData) => this.paymentModal.open(saleData)
@@ -53,16 +82,16 @@ class App {
     );
     this.settings.init(document.getElementById('view-settings'));
 
-    // 5. Global Bindings
     this.bindNavigation();
     this.bindThemeToggle();
     this.updateHeaderStats();
 
-    // 6. Store subscriptions for header stats
     store.subscribe((event) => {
-      if (['STOCK_UPDATED', 'SALE_RECORDED', 'SETTINGS_UPDATED', 'STATE_RESET'].includes(event)) {
+      if (['STOCK_UPDATED', 'SALE_RECORDED', 'SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.updateHeaderStats();
       }
+      if (event === 'SYNC_ERROR') this.showAppError('Live shared-data updates were interrupted. Reload the page to reconnect.');
+      if (event === 'REMOTE_STATE_UPDATED') this.showAppError('');
     });
 
     // Listen to system dark mode change
@@ -72,63 +101,6 @@ class App {
           store.applyTheme('auto');
         }
       });
-    }
-  }
-
-  seedDemoSalesIfEmpty() {
-    // Only seed if zero sales exist so cashier sees realistic daily report right away
-    if (store.getSales().length === 0) {
-      try {
-        // Record a starter retail sale
-        const sale1 = store.recordSale({
-          customerName: 'Kofi Mensah',
-          customerPhone: '0244123456',
-          priceType: 'retail',
-          items: [
-            { productId: 'prod-medium', name: 'Medium Eggs', sizeLabel: 'Medium', crates: 3, unitPrice: 56, lineTotal: 168 },
-            { productId: 'prod-large', name: 'Large Eggs', sizeLabel: 'Large', crates: 2, unitPrice: 64, lineTotal: 128 }
-          ],
-          totalCrates: 5,
-          subtotal: 296,
-          discountPercent: 0,
-          discountAmount: 0,
-          grandTotal: 296,
-          paymentMethod: 'cash',
-          paymentDetails: {
-            method: 'Cash',
-            amountTendered: 300,
-            change: 4,
-            amountPaid: 296,
-            balanceDue: 0
-          }
-        });
-
-        // Record a wholesale bulk order with 10% discount
-        const sale2 = store.recordSale({
-          customerName: 'Aba Bakery Ltd',
-          customerPhone: '0555987654',
-          priceType: 'wholesale',
-          items: [
-            { productId: 'prod-large', name: 'Large Eggs', sizeLabel: 'Large', crates: 8, unitPrice: 60, lineTotal: 480 },
-            { productId: 'prod-medium', name: 'Medium Eggs', sizeLabel: 'Medium', crates: 4, unitPrice: 52, lineTotal: 208 }
-          ],
-          totalCrates: 12,
-          subtotal: 688,
-          discountPercent: 10,
-          discountAmount: 68.80,
-          grandTotal: 619.20,
-          paymentMethod: 'momo',
-          paymentDetails: {
-            method: 'Mobile Money',
-            network: 'MTN Mobile Money',
-            reference: 'MM2819034',
-            amountPaid: 619.20,
-            balanceDue: 0
-          }
-        });
-      } catch (e) {
-        console.warn('Initial seed sales skipped:', e);
-      }
     }
   }
 

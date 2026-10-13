@@ -17,7 +17,7 @@ export class StockController {
     this.render();
 
     store.subscribe((event) => {
-      if (['STOCK_UPDATED', 'STOCK_LOGS_UPDATED', 'PRODUCTS_UPDATED', 'STATE_RESET'].includes(event)) {
+      if (['STOCK_UPDATED', 'STOCK_LOGS_UPDATED', 'PRODUCTS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.render();
       }
     });
@@ -354,7 +354,7 @@ export class StockController {
     // Form: Delivery Submit
     const formDelivery = this.container.querySelector('#form-receive-delivery');
     if (formDelivery) {
-      formDelivery.addEventListener('submit', (e) => {
+      formDelivery.addEventListener('submit', async (e) => {
         e.preventDefault();
         const pId = this.container.querySelector('#delivery-product-select').value;
         const crates = this.container.querySelector('#delivery-crates-input').value;
@@ -362,7 +362,7 @@ export class StockController {
         const notes = this.container.querySelector('#delivery-notes-input').value;
 
         try {
-          store.recordDelivery({
+          await store.recordDelivery({
             productId: pId,
             cratesReceived: crates,
             supplierName: supplier,
@@ -379,14 +379,14 @@ export class StockController {
     // Form: Adjust Submit
     const formAdjust = this.container.querySelector('#form-stock-adjust');
     if (formAdjust) {
-      formAdjust.addEventListener('submit', (e) => {
+      formAdjust.addEventListener('submit', async (e) => {
         e.preventDefault();
         const pId = this.container.querySelector('#adjust-product-select').value;
         const targetStock = this.container.querySelector('#adjust-new-stock').value;
         const reason = this.container.querySelector('#adjust-reason-input').value;
 
         try {
-          store.adjustStock({
+          await store.adjustStock({
             productId: pId,
             newStockCount: targetStock,
             reason

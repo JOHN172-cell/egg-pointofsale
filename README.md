@@ -2,7 +2,7 @@
 
 > **Full Crates Only Policy**: Exclusively sells eggs in whole crates of 30 eggs each. No loose eggs, half crates, or single trays.
 
-A fast, lightweight, and modern web-based Point of Sale (POS) and inventory tracking application built for **Sylcat Farms**.
+A fast, lightweight, and modern web-based Point of Sale (POS) and inventory tracking application built for **Sylcat Farms**. Shared operational data is stored in Supabase so authorized staff can use the same sales and stock data from multiple PCs.
 
 ---
 
@@ -48,18 +48,28 @@ A fast, lightweight, and modern web-based Point of Sale (POS) and inventory trac
 - **Sales History**: Filter transactions by date and reprint receipts anytime.
 
 ### ⚙️ Settings & Theme
-- Automatic Light and Dark modes respecting device preferences, plus manual toggle.
+- Automatic Light and Dark modes respecting device preferences, plus manual toggle (saved per device).
 - Off-white (`#F8F7F2`) and off-black (`#141412`) backgrounds with egg-yolk gold accents (`#B45309` light, `#F5A524` dark).
 - Configurable business name, phone, address, and bulk discount thresholds.
 - JSON backup export and demo data reset.
 
 ---
 
+## ☁️ Configure Shared Supabase Storage
+
+1. Create a Supabase project.
+2. In the Supabase SQL Editor, run [`supabase/schema.sql`](./supabase/schema.sql). It creates the POS tables, stock/sale transaction functions, public row-level-security policies, and live-change publication. If you ran an earlier authenticated-only version of this schema, run this updated SQL again to remove the sign-in restriction.
+3. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the Supabase project's API settings. The publishable/anon key is intended for browser use; never use a service-role/secret key here.
+4. Start the app. It initializes the shared database on first load. If deploying to a new site/domain, first export the existing POS backup from **Settings → Export Data (JSON)** in the old app, then open the new app and import it using **Settings → Import Backup to Shared POS**. Import replaces the shared data for everyone.
+5. For Vercel, set the same two environment variables in the project's Environment Variables settings and redeploy. Keep `.env.local` out of source control.
+
+Sales, products, stock movements, and business settings are shared. Theme and cashier preferences remain per-device. The first visit bootstraps the database only once; it will not overwrite an existing shared database. If Supabase variables are not configured, the app uses browser-local storage and shows a local-mode warning; local-mode data does not sync between computers. **Access is public and has no sign-in:** anyone who can reach the app can view or modify all POS data, including importing a replacement backup or resetting shared data. Do not use this mode for sensitive records or expose the URL publicly.
+
 ## 🚀 Running Locally
 
-1. Open a terminal in this directory:
+1. Configure Supabase as above, then open a terminal in this directory:
    ```bash
    npm run dev
    ```
 2. Open the displayed local URL (e.g. `http://localhost:5173`) in your browser.
-3. Alternatively, `index.html` can be opened directly in modern browsers supporting ES modules.
+3. Use the POS directly without a sign-in.

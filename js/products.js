@@ -17,7 +17,7 @@ export class ProductsController {
     this.render();
 
     store.subscribe((event) => {
-      if (['PRODUCTS_UPDATED', 'SETTINGS_UPDATED', 'STATE_RESET'].includes(event)) {
+      if (['PRODUCTS_UPDATED', 'SETTINGS_UPDATED', 'STATE_RESET', 'REMOTE_STATE_UPDATED'].includes(event)) {
         this.render();
       }
     });
@@ -208,9 +208,13 @@ export class ProductsController {
 
     // Toggle Active / Deactivate
     this.container.querySelectorAll('.btn-toggle-active').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
-        store.toggleProductActive(id);
+        try {
+          await store.toggleProductActive(id);
+        } catch (err) {
+          alert(err.message || 'Unable to update product');
+        }
       });
     });
 
@@ -225,7 +229,7 @@ export class ProductsController {
 
     // Save Form
     if (form) {
-      form.addEventListener('submit', (e) => {
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = this.container.querySelector('#prod-form-id').value;
         const name = this.container.querySelector('#prod-form-name').value.trim();
@@ -235,31 +239,32 @@ export class ProductsController {
         const lowStockLevel = Number(this.container.querySelector('#prod-form-lowstock').value);
         const description = this.container.querySelector('#prod-form-desc').value.trim();
 
-        if (id) {
-          // Update existing
-          store.updateProduct(id, {
-            name,
-            sizeLabel,
-            retailPrice,
-            wholesalePrice,
-            lowStockLevel,
-            description
-          });
-        } else {
-          // Add new
-          const initialStock = Number(this.container.querySelector('#prod-form-stock').value) || 0;
-          store.addProduct({
-            name,
-            sizeLabel,
-            retailPrice,
-            wholesalePrice,
-            lowStockLevel,
-            stock: initialStock,
-            description
-          });
+        try {
+          if (id) {
+            await store.updateProduct(id, {
+              name,
+              sizeLabel,
+              retailPrice,
+              wholesalePrice,
+              lowStockLevel,
+              description
+            });
+          } else {
+            const initialStock = Number(this.container.querySelector('#prod-form-stock').value) || 0;
+            await store.addProduct({
+              name,
+              sizeLabel,
+              retailPrice,
+              wholesalePrice,
+              lowStockLevel,
+              stock: initialStock,
+              description
+            });
+          }
+          modal.close();
+        } catch (err) {
+          alert(err.message || 'Unable to save product');
         }
-
-        modal.close();
       });
     }
   }

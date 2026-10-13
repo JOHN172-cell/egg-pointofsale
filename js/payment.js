@@ -449,7 +449,7 @@ export class PaymentModal {
     }
   }
 
-  processSale() {
+  async processSale() {
     const data = this.currentSaleData;
     const total = data.grandTotal;
     let paymentDetails = {};
@@ -538,7 +538,7 @@ export class PaymentModal {
 
     try {
       // Record completed sale in Store
-      const completedSale = store.recordSale({
+      const completedSale = await store.recordSale({
         ...data,
         customerName,
         paymentMethod: this.activeMethod,
