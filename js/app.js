@@ -11,6 +11,7 @@ import { StockController } from './stock.js';
 import { ProductsController } from './products.js';
 import { ReportsController } from './reports.js';
 import { SettingsController } from './settings.js';
+import { currentSession, login, logout } from './api.js';
 
 class App {
   constructor() {
@@ -22,14 +23,72 @@ class App {
     this.settings = new SettingsController();
     this.initialized = false;
     this.enteringApp = null;
+    this.user = null;
+    this.activityTimeout = null;
+    this.refreshTimer = null;
   }
 
   async start() {
+    this.bindAuthentication();
+    store.applyTheme(store.getTheme());
     try {
-      await this.enterApp();
+      const user = await currentSession();
+      if (user) await this.enterApp(user);
     } catch (error) {
-      console.error('Unable to open shared POS:', error);
-      this.showAppError(`Unable to connect to the shared database: ${error.message}`);
+      this.showLoginError(error.message || 'Unable to connect. Check your internet connection and try again.');
+    }
+  }
+
+  bindAuthentication() {
+    const form = document.getElementById('login-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const errorBox = document.getElementById('login-error');
+      const button = form.querySelector('button[type="submit"]');
+      errorBox.hidden = true;
+      button.disabled = true;
+      try {
+        const user = await login(
+          document.getElementById('login-email').value.trim(),
+          document.getElementById('login-password').value
+        );
+        document.getElementById('login-password').value = '';
+        await this.enterApp(user);
+      } catch (error) {
+        this.showLoginError(error.message || 'Sign in failed. Please try again.');
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById('btn-logout').addEventListener('click', () => this.signOut());
+    ['pointerdown', 'keydown', 'touchstart'].forEach(eventName => {
+      window.addEventListener(eventName, () => {
+        if (this.user) this.resetActivityTimeout();
+      }, { passive: true });
+    });
+  }
+
+  showLoginError(message) {
+    const errorBox = document.getElementById('login-error');
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  resetActivityTimeout() {
+    window.clearTimeout(this.activityTimeout);
+    this.activityTimeout = window.setTimeout(() => this.signOut(true), 30 * 60 * 1000);
+  }
+
+  async signOut(expired = false) {
+    window.clearTimeout(this.activityTimeout);
+    window.clearInterval(this.refreshTimer);
+    this.user = null;
+    document.documentElement.removeAttribute('data-role');
+    document.getElementById('app-shell').hidden = true;
+    document.getElementById('auth-screen').hidden = false;
+    if (expired) this.showLoginError('You were signed out after 30 minutes of inactivity. Please sign in again.');
+    try { await logout(); } catch (error) {
+      console.error('Server sign out failed:', error);
     }
   }
 
@@ -39,8 +98,10 @@ class App {
     errorBox.hidden = !message;
   }
 
-  async enterApp() {
+  async enterApp(user) {
+    if (user) this.user = user;
     if (this.initialized) {
+      this.resetActivityTimeout();
       return;
     }
     if (this.enteringApp) return this.enteringApp;
@@ -53,11 +114,15 @@ class App {
   }
 
   async initializeApp() {
-    const isShared = await store.connectToSharedDatabase();
+    const user = await store.refreshSharedData(false);
+    if (!this.user) this.user = user;
+    document.getElementById('auth-screen').hidden = true;
+    document.getElementById('app-shell').hidden = false;
+    document.documentElement.dataset.role = this.user.role;
+    document.getElementById('staff-identity').textContent =
+      `${this.user.name} · ${this.user.role}`;
+    this.resetActivityTimeout();
     this.initialized = true;
-    if (!isShared) {
-      this.showAppError('Local mode: Supabase is not configured. Stock and sales work on this browser only and will not sync to other PCs.');
-    }
     store.applyTheme(store.getTheme());
 
     const paymentModalEl = document.getElementById('modal-payment');
@@ -91,8 +156,10 @@ class App {
         this.updateHeaderStats();
       }
       if (event === 'SYNC_ERROR') this.showAppError('Live shared-data updates were interrupted. Reload the page to reconnect.');
+      if (event === 'AUTH_EXPIRED') this.signOut(true);
       if (event === 'REMOTE_STATE_UPDATED') this.showAppError('');
     });
+    this.refreshTimer = store.subscribeToSharedChanges();
 
     // Listen to system dark mode change
     if (window.matchMedia) {

@@ -1,75 +1,87 @@
-# Sylcat Farms - Point of Sale (POS) System
+# Sylcat Farms Point of Sale
 
-> **Full Crates Only Policy**: Exclusively sells eggs in whole crates of 30 eggs each. No loose eggs, half crates, or single trays.
+Web POS for whole egg crates (30 eggs per crate), with cash, mobile-money, card-terminal-reference and credit recording, client balances, stock tracking, receipts and sales reports.
 
-A fast, lightweight, and modern web-based Point of Sale (POS) and inventory tracking application built for **Sylcat Farms**. Shared operational data is stored in Supabase so authorized staff can use the same sales and stock data from multiple PCs.
+## Security and data model
 
----
+- The browser talks only to same-origin Vercel API functions for POS data. No Supabase service-role key is included in the Vite/browser bundle.
+- Supabase Auth uses email and password. Public signup must be disabled; an administrator creates staff accounts.
+- PostgreSQL stores prices and all money amounts as integer pesewas/cents. The sale function recalculates prices, discounts and totals from database product/settings rows.
+- Sale rows, sale items, payment entries and inventory deductions are committed in one database transaction. Product rows and stock are locked while a sale is completed; stock cannot go below zero. The request UUID prevents a retried request from charging stock twice.
+- RLS limits cashier sales reads to their own sales; managers/admins can read all sales. Stock and product/settings edits, refunds, voids and user-management operations require manager/admin privileges (user account creation is restricted by role).
+- Sales are never deleted by this application. Refunds and voids are recorded as adjustments, and voids restore all sold crates in the same transaction.
+- The app records card as a payment method/reference only; it does not collect or store card numbers or process a card payment.
+- Browser-local history remains on that browser until deliberately migrated. The migration routines stop if normalized shared products/sales already exist and do not clear local or legacy rows.
 
-## 🌟 Version 1 Features
+## Setup (non-expert)
 
-### 🛒 Sales Terminal (Cashier Interface)
-- **Full Crates Enforcement**: Strictly whole-number quantities (`step="1"`, `min="1"`).
-- **Egg Size Cards**: Instant selection for Small, Medium, Large, and Jumbo crates.
-- **Dual Pricing**: Instant toggle between **Retail Price** and **Wholesale Price**.
-- **Automatic Bulk Discount**: Automatic 10% discount on orders of 10 or more crates (customizable in Settings).
-- **Real-time Stock Guard**: Prevents adding more crates than currently in inventory.
-- **Large Touch Controls**: Optimized for touchscreens, mobile phones, tablets, and POS terminals.
+### 1. Create the Supabase project
 
-### 💳 Payment & Checkout
-- **Cash**: Instant change calculation and quick denomination buttons; partial payments record the named client's remaining balance.
-- **Mobile Money (MoMo)**: Supports MTN MoMo, Telecel Cash, and AirtelTigo with transaction references.
-- **Card**: POS terminal slip reference recording.
-- **Pay Later (Credit)**: Allows recording credit sales with customer name, promise date, and balance due.
-- **Split Payment**: Split a single bill across two payment methods (e.g. Cash + MoMo), or record the second part as a named client's balance due.
+1. Create a project at [supabase.com](https://supabase.com). Save the database password somewhere safe; this app does not need that password.
+2. In **Authentication → Settings**, turn off public sign-ups. Staff accounts are created by an administrator.
+3. Open **SQL Editor → New query**. Copy all of [`supabase/schema.sql`](./supabase/schema.sql) into the editor and click **Run**. It creates normalized products, inventory, sales, sale items, payments, profiles, categories, stock movements, refund adjustments, settings and audit tables, with RLS and transactional functions.
+4. The schema does not delete old `pos_*` records. It disables their old public access. Use the **Migrate Older Shared Database** action after creating the first admin to copy the old shared JSON data into the new tables. If this is a new project, skip that action.
 
-### 🧾 Receipts
-- **Header**: Sylcat Farms branding, phone number `0244606689`, and optional farm address.
-- **Details**: Sale ID, date/time, cashier name, customer name, crate breakdown, totals, amount paid, and balance due.
-- **Client balance**: Shows all unpaid invoices and the client's total outstanding balance on receipts.
-- **Actions**:
-  - 🖨️ Thermal printer-ready print formatting (`@media print`).
-  - 📲 Share via WhatsApp with pre-formatted message.
-  - 💬 Share via SMS.
-  - 📋 Copy plain text receipt to clipboard.
-  - 🔄 Reprint any past transaction from reports.
+### 2. Configure local development
 
-### 📦 Whole-Crate Stock Management
-- **Inventory Tracking**: Stock counted strictly in whole crates.
-- **Farm Deliveries**: Record new stock inflows with supplier/harvest batch notes.
-- **Low-Stock Alerts**: Visual warning badges when stock falls below configured threshold.
-- **Manual Stock Adjustments**: Owner override with mandatory reason logging.
-- **Audit Log**: Full chronological history of every stock movement.
+1. Install Node.js 20 or newer.
+2. Copy `.env.example` to `.env.local`.
+3. In Supabase **Project Settings → API**, set the values in `.env.local`:
 
-### 📊 Daily Sales Reports
-- **Daily Summary**: Total revenue, total collections, total crates sold, discounts given, and all outstanding client balances.
-- **Size Breakdown**: Progress bars and percentages of crates sold per egg size.
-- **Payment Breakdown**: Total collections for Cash, MoMo, Card, Credit, and Split payments.
-- **Sales History**: Filter transactions by date and reprint receipts anytime.
+   | Name | Supabase value | Secret? |
+   |---|---|---|
+   | `SUPABASE_URL` | Project URL | No |
+   | `SUPABASE_ANON_KEY` | Publishable/anon key | No |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Secret/service-role key | **Yes — server only** |
 
-### ⚙️ Settings & Theme
-- Automatic Light and Dark modes respecting device preferences, plus manual toggle (saved per device).
-- Off-white (`#F8F7F2`) and off-black (`#141412`) backgrounds with egg-yolk gold accents (`#B45309` light, `#F5A524` dark).
-- Configurable business name, phone, address, and bulk discount thresholds.
-- JSON backup export and demo data reset.
+   Never put the service-role key in a `VITE_` variable, browser code, source control, or a message. `.env.local` is git-ignored.
+4. In a terminal in the project folder, run:
 
----
+   ```sh
+   npm install
+   npm run create-admin
+   ```
 
-## ☁️ Configure Shared Supabase Storage
+   Enter the first administrator's email and name. The password prompt is hidden; use at least 12 characters. The script refuses to create another first admin once one exists.
+5. Start the application and its API functions:
 
-1. Create a Supabase project.
-2. In the Supabase SQL Editor, run [`supabase/schema.sql`](./supabase/schema.sql). It creates the POS tables, stock/sale transaction functions, public row-level-security policies, and live-change publication. If you ran an earlier authenticated-only version of this schema, run this updated SQL again to remove the sign-in restriction.
-3. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the Supabase project's API settings. The publishable/anon key is intended for browser use; never use a service-role/secret key here.
-4. Start the app. It initializes the shared database on first load. If deploying to a new site/domain, first export the existing POS backup from **Settings → Export Data (JSON)** in the old app, then open the new app and import it using **Settings → Import Backup to Shared POS**. Import replaces the shared data for everyone.
-5. For Vercel, set the same two environment variables in the project's Environment Variables settings and redeploy. Keep `.env.local` out of source control.
-
-Sales, products, stock movements, and business settings are shared. Theme and cashier preferences remain per-device. The first visit bootstraps the database only once; it will not overwrite an existing shared database. If Supabase variables are not configured, the app uses browser-local storage and shows a local-mode warning; local-mode data does not sync between computers. **Access is public and has no sign-in:** anyone who can reach the app can view or modify all POS data, including importing a replacement backup or resetting shared data. Do not use this mode for sensitive records or expose the URL publicly.
-
-## 🚀 Running Locally
-
-1. Configure Supabase as above, then open a terminal in this directory:
-   ```bash
+   ```sh
    npm run dev
    ```
-2. Open the displayed local URL (e.g. `http://localhost:5173`) in your browser.
-3. Use the POS directly without a sign-in.
+
+   Open the local URL printed by Vercel and sign in. Do not use `vite preview` for API testing; it serves static files only.
+6. On the first administrator's device, open **Settings** and select either **Migrate This Browser's Local Data** (the prior browser's localStorage data) or **Migrate Older Shared Database** (the previous shared `pos_*` tables). Each is a one-time import into an empty normalized database. Back up important local data before migrating; the browser's original localStorage is kept unchanged.
+7. Create cashier/manager accounts from **Settings → Staff Accounts**. Share temporary passwords securely and ask staff to change them outside this POS before use.
+
+### 3. Deploy to Vercel
+
+1. Import the repository into Vercel. Use the Vite preset, `npm run build` as the build command and `dist` as the output directory.
+2. In **Vercel → Project → Settings → Environment Variables**, add all three server variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Add them to Production (and Preview if those deployments should access the same database). Mark `SUPABASE_SERVICE_ROLE_KEY` sensitive.
+3. Redeploy after saving the variables. Confirm login and API calls on the deployed URL.
+4. Keep the service-role key only in Vercel's server environment and your private local `.env.local`. If it is ever exposed, rotate it in Supabase immediately.
+
+The first-admin script runs once from a trusted local terminal. Do not add the service key to Vercel's browser/build variables with a `VITE_` prefix.
+
+## Features
+
+- Whole-crate-only inventory and checkout, retail/wholesale rates and configurable bulk discounts.
+- Partial cash, split payments, mobile money, card-terminal references and named credit balances.
+- Receipts show paid amounts and remaining client balance; reports include revenue owed and collections.
+- Manager/admin stock deliveries, reason-required adjustments, audited price/settings changes, refunds and voids.
+- Cashiers can sell, view stock/products and see their own sales. Managers/admins can access all sales and management screens.
+- Local theme preference, print/share receipts, JSON data export and stock-movement audit history.
+
+## Deployment configuration
+
+The exact Vercel environment variable names are `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. The matching local template is [`.env.example`](./.env.example). No Supabase key is exposed through a `VITE_` browser variable.
+
+## Checklist after setup
+
+- [ ] Sign in with the first administrator; confirm sign-out and the 30-minute inactivity timeout.
+- [ ] Create a cashier and manager; verify the cashier cannot edit prices, adjust stock, issue refunds, see other cashiers' sales or manage accounts.
+- [ ] Complete a sale on one PC; attempt a sale for the final available crate from another PC at the same time; confirm stock never becomes negative and only successful sales reduce it.
+- [ ] Confirm the receipt's cashier, client, amount paid and balance due, and confirm the revenue-owed report shows the client.
+- [ ] Record a delivery and reasoned stock adjustment; confirm movement and audit history.
+- [ ] Issue a partial refund and a full void as a manager; confirm audit entries, stock restoration for voids and updated net reports.
+- [ ] Confirm sales, balances, stock and reports refresh from the shared database on a second PC.
+- [ ] Confirm no card number is requested or stored; only the card/terminal reference is recorded.

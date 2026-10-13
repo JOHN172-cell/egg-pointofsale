@@ -54,6 +54,93 @@
   --transition-normal: 0.25s ease;
 }
 
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--color-bg);
+}
+
+.auth-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 0.85rem;
+  padding: 2rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-card .brand-logo-badge {
+  margin-bottom: 0.5rem;
+}
+
+.auth-card h1 {
+  font-size: 1.6rem;
+}
+
+.auth-card p,
+.auth-card small {
+  color: var(--color-text-secondary);
+}
+
+.auth-card label {
+  font-weight: 600;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.auth-error {
+  color: var(--color-danger) !important;
+  font-weight: 600;
+}
+
+.staff-identity {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+[data-role="cashier"] #tab-nav-settings,
+[data-role="cashier"] #btn-add-product,
+[data-role="cashier"] .btn-edit-product,
+[data-role="cashier"] .btn-toggle-active,
+[data-role="cashier"] #btn-open-delivery-modal,
+[data-role="cashier"] #btn-open-adjust-modal,
+[data-role="cashier"] .btn-quick-delivery,
+[data-role="cashier"] .btn-quick-adjust {
+  display: none !important;
+}
+
+[data-role="cashier"] .btn-mark-paid,
+[data-role="cashier"] .btn-refund-sale,
+[data-role="cashier"] .btn-void-sale {
+  display: none !important;
+}
+
+.staff-account-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.staff-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
 /* Dark Theme Overrides */
 [data-theme="dark"] {
   --color-bg: #141412;              /* Off-black background */

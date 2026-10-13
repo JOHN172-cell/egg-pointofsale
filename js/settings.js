@@ -5,6 +5,7 @@
  */
 
 import { store } from './store.js';
+import { api } from './api.js';
 
 export class SettingsController {
   constructor() {
@@ -116,20 +117,52 @@ export class SettingsController {
 
             <!-- Data Management -->
             <div class="settings-card-header">
-              <h3>💾 Backup & Demo Data</h3>
+              <h3>💾 Data Backup & Migration</h3>
             </div>
+            <p class="form-hint">Export downloads a copy. Migration imports data only when the normalized shared database has no products or sales. It never clears existing local or shared records.</p>
             <div class="settings-backup-buttons">
               <button type="button" class="btn btn-secondary" id="btn-export-backup">
                 <span>📥 Export Data (JSON)</span>
               </button>
-              <button type="button" class="btn btn-secondary" id="btn-import-backup">
-                <span>📤 Import Backup to Shared POS</span>
+              <button type="button" class="btn btn-secondary" id="btn-migrate-local">
+                <span>📤 Migrate This Browser's Local Data</span>
               </button>
-              <input type="file" id="input-import-backup" accept=".json,application/json" hidden>
-              <button type="button" class="btn btn-outline-danger" id="btn-reset-demo">
-                <span>🔄 Reset to Fresh Demo Data</span>
+              <button type="button" class="btn btn-secondary" id="btn-migrate-legacy">
+                <span>📤 Migrate Older Shared Database</span>
               </button>
             </div>
+
+            <hr class="my-4">
+
+            <div class="settings-card-header">
+              <h3>👥 Staff Accounts</h3>
+              <p>Administrators can create manager and cashier accounts. Managers can manage cashier accounts.</p>
+            </div>
+            <div class="form-row">
+              <div class="form-group form-col">
+                <label for="staff-name" class="form-label">Staff Name</label>
+                <input type="text" id="staff-name" class="form-control" autocomplete="name">
+              </div>
+              <div class="form-group form-col">
+                <label for="staff-email" class="form-label">Email</label>
+                <input type="email" id="staff-email" class="form-control" autocomplete="email">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group form-col">
+                <label for="staff-password" class="form-label">Temporary Password (12+ characters)</label>
+                <input type="password" id="staff-password" class="form-control" autocomplete="new-password" minlength="12">
+              </div>
+              <div class="form-group form-col">
+                <label for="staff-role" class="form-label">Role</label>
+                <select id="staff-role" class="form-control">
+                  <option value="cashier">Cashier</option>
+                  <option value="manager">Manager</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-create-staff">Create Staff Account</button>
+            <div id="staff-account-list" class="staff-account-list" aria-live="polite"></div>
           </div>
         </form>
       </div>
@@ -191,42 +224,84 @@ export class SettingsController {
       });
     }
 
-    const btnImport = this.container.querySelector('#btn-import-backup');
-    const inputImport = this.container.querySelector('#input-import-backup');
-    if (btnImport && inputImport) {
-      btnImport.addEventListener('click', () => inputImport.click());
-      inputImport.addEventListener('change', async () => {
-        const file = inputImport.files[0];
-        if (!file) return;
+    const migrateButton = this.container.querySelector('#btn-migrate-local');
+    if (migrateButton) {
+      migrateButton.addEventListener('click', async () => {
+        if (!confirm('Migrate this browser’s saved POS data into the shared database? The migration will stop without changing either copy if shared products or sales already exist.')) return;
         try {
-          const backup = JSON.parse(await file.text());
-          if (!confirm('Importing this backup will replace shared settings, products, stock, sales, and movement history for every staff member. Continue?')) {
-            inputImport.value = '';
-            return;
-          }
-          await store.importBackup(backup);
-          alert('Backup imported into the shared POS successfully.');
+          const result = await store.migrateLocalData();
+          alert(result.message);
         } catch (error) {
-          alert(error.message || 'Unable to import backup');
-        } finally {
-          inputImport.value = '';
+          alert(error.message || 'Unable to migrate local data');
+        }
+        const legacyButton = this.container.querySelector('#btn-migrate-legacy');
+        if (legacyButton) {
+          if (document.documentElement.dataset.role !== 'admin') {
+            legacyButton.hidden = true;
+          } else {
+            legacyButton.addEventListener('click', async () => {
+              if (!confirm('Import the previous POS data tables into the new secure tables? The shared database must not yet contain normalized products or sales. Legacy rows will be retained, not deleted.')) return;
+              try {
+                const result = await api.post('/api/migrate-legacy', {});
+                await store.refreshSharedData();
+                alert(result.message);
+              } catch (error) {
+                alert(error.message || 'Unable to migrate the older shared database');
+              }
+            });
+          }
         }
       });
     }
 
-    // Reset Demo Data
-    const btnReset = this.container.querySelector('#btn-reset-demo');
-    if (btnReset) {
-      btnReset.addEventListener('click', async () => {
-        if (confirm('Reset shared POS data for every staff member? This permanently clears all shared sales and adjustments.')) {
-          try {
-            await store.resetDemoData();
-            alert('Shared POS data has been reset to defaults for all staff.');
-          } catch (error) {
-            alert(error.message || 'Unable to reset shared POS data');
-          }
-        }
-      });
+    this.bindStaffManagement();
+  }
+
+  async bindStaffManagement() {
+    const list = this.container.querySelector('#staff-account-list');
+    const createButton = this.container.querySelector('#btn-create-staff');
+    const role = document.documentElement.dataset.role;
+    if (role === 'cashier') {
+      this.container.querySelectorAll('#staff-name,#staff-email,#staff-password,#staff-role,#btn-create-staff')
+        .forEach(element => element.closest('.form-group')?.setAttribute('hidden', ''));
+      return;
     }
+    if (role === 'manager') {
+      const roleSelect = this.container.querySelector('#staff-role');
+      roleSelect.innerHTML = '<option value="cashier">Cashier</option>';
+    }
+    const loadStaff = async () => {
+      const result = await api.get('/api/users');
+      list.innerHTML = result.users.map(staff => `
+        <div class="staff-account-row">
+          <span><strong>${staff.display_name}</strong> · ${staff.role}${staff.active ? '' : ' · Deactivated'}</span>
+          ${staff.role !== 'admin' ? `<button type="button" class="btn btn-sm btn-secondary" data-staff-id="${staff.id}" data-active="${staff.active}">${staff.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}
+        </div>`).join('');
+      list.querySelectorAll('[data-staff-id]').forEach(button => button.addEventListener('click', async () => {
+        try {
+          await api.patch('/api/users', { id: button.dataset.staffId, active: button.dataset.active !== 'true' });
+          await loadStaff();
+        } catch (error) { alert(error.message); }
+      }));
+    };
+    try {
+      await loadStaff();
+    } catch (error) {
+      list.textContent = error.message;
+    }
+    createButton.addEventListener('click', async () => {
+      const body = {
+        displayName: this.container.querySelector('#staff-name').value.trim(),
+        email: this.container.querySelector('#staff-email').value.trim(),
+        password: this.container.querySelector('#staff-password').value,
+        role: this.container.querySelector('#staff-role').value
+      };
+      try {
+        await api.post('/api/users', body);
+        this.container.querySelector('#staff-password').value = '';
+        await loadStaff();
+        alert('Staff account created. Share the credentials with the staff member securely.');
+      } catch (error) { alert(error.message); }
+    });
   }
 }

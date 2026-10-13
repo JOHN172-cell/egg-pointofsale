@@ -4,7 +4,7 @@
  * Strictly enforces full-crates-only inventory (integers >= 1).
  */
 
-import { supabase, supabaseConfigured } from './supabase.js';
+import { api } from './api.js';
 
 const STORAGE_KEYS = {
   SETTINGS: 'sylcat_pos_settings_v1',
@@ -237,12 +237,8 @@ class Store {
 
   async updateSettingsShared(newSettings) {
     const settings = { ...this.settings, ...newSettings };
-    if (supabaseConfigured) {
-      const { error } = await supabase.from('pos_settings').upsert({ id: 1, data: settings });
-      if (error) throw error;
-    } else {
-      this.save(STORAGE_KEYS.SETTINGS, settings);
-    }
+    const result = await api.put('/api/pos/settings', settings);
+    Object.assign(settings, result.settings);
     this.settings = settings;
     this.notify('SETTINGS_UPDATED', this.settings);
   }
@@ -282,14 +278,8 @@ class Store {
     }
 
     const product = { ...this.products[idx], ...updates };
-    if (supabaseConfigured) {
-      const { error } = await supabase.from('pos_products').upsert({ id, data: product });
-      if (error) throw error;
-    } else {
-      this.products[idx] = product;
-      this.save(STORAGE_KEYS.PRODUCTS, this.products);
-    }
-    this.products[idx] = product;
+    await api.patch('/api/pos/products', { ...product, id });
+    await this.refreshSharedData(false);
     this.notify('PRODUCTS_UPDATED', this.products);
     return true;
   }
@@ -313,25 +303,8 @@ class Store {
       description: productData.description || `Fresh ${productData.sizeLabel} egg crates (30 eggs/crate)`
     };
 
-    if (supabaseConfigured) {
-      const { error } = await supabase.from('pos_products').insert({ id, data: newProd });
-      if (error) throw error;
-    }
-    this.products.push(newProd);
-    if (!supabaseConfigured) this.save(STORAGE_KEYS.PRODUCTS, this.products);
-
-    if (newProd.stock > 0) {
-      await this.logStockMovement({
-        productId: newProd.id,
-        productName: newProd.name,
-        type: 'INITIAL_STOCK',
-        cratesChanged: newProd.stock,
-        previousStock: 0,
-        newStock: newProd.stock,
-        reason: 'New Product Added',
-        cashier: this.activeCashier
-      });
-    }
+    await api.post('/api/pos/products', newProd);
+    await this.refreshSharedData(false);
 
     this.notify('PRODUCTS_UPDATED', this.products);
     return newProd;
@@ -390,73 +363,30 @@ class Store {
   }
 
   async logStockMovementShared(entry) {
-    const logItem = {
-      id: 'log-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-      timestamp: new Date().toISOString(),
-      ...entry
-    };
-    if (supabaseConfigured) {
-      const { error } = await supabase.from('pos_stock_logs').insert({
-        id: logItem.id,
-        logged_at: logItem.timestamp,
-        product_id: logItem.productId,
-        data: logItem
-      });
-      if (error) throw error;
-    }
-    this.stockLogs.unshift(logItem); // Latest first
-    if (!supabaseConfigured) this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
-    this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
+    const { previousStock, newStock } = entry;
+    const delta = newStock - previousStock;
+    if (!delta) return;
+    await api.post('/api/pos/stock', {
+      productId: entry.productId,
+      delta,
+      reason: entry.reason,
+      type: entry.type
+    });
+    await this.refreshSharedData();
   }
 
   async recordStockChange({ productId, quantity, isTarget, type, reason }) {
-    if (!supabaseConfigured) {
-      const productIndex = this.products.findIndex(product => product.id === productId);
-      if (productIndex < 0) throw new Error('Product not found');
-      const product = this.products[productIndex];
-      const previousStock = product.stock;
-      const newStock = isTarget ? quantity : previousStock + quantity;
-      const difference = newStock - previousStock;
-      if (newStock < 0) throw new Error('Stock cannot be negative');
-      if (difference === 0) return { previousStock, newStock, difference };
-
-      this.products[productIndex] = { ...product, stock: newStock };
-      this.save(STORAGE_KEYS.PRODUCTS, this.products);
-      this.logStockMovement({
-        productId,
-        productName: product.name,
-        type,
-        cratesChanged: difference,
-        previousStock,
-        newStock,
-        reason,
-        cashier: this.activeCashier
-      });
-      this.notify('PRODUCTS_UPDATED', this.products);
-      this.notify('STOCK_UPDATED', { productId, newStock });
-      return { previousStock, newStock, difference };
-    }
-
-    const { data, error } = await supabase.rpc('record_pos_stock_change', {
-      p_product_id: productId,
-      p_quantity: quantity,
-      p_is_target: isTarget,
-      p_type: type,
-      p_reason: reason,
-      p_cashier: this.activeCashier
-    });
-    if (error) throw error;
-    const productIndex = this.products.findIndex(product => product.id === productId);
-    if (productIndex < 0) throw new Error('Stock changed, but the product is missing from the local view. Refresh the page.');
-    this.products[productIndex] = data.product;
-    if (data.log) this.stockLogs.unshift(data.log);
-    this.notify('PRODUCTS_UPDATED', this.products);
-    this.notify('STOCK_UPDATED', { productId, newStock: data.newStock });
-    if (data.log) this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
+    const product = this.getProductById(productId);
+    if (!product) throw new Error('Product not found');
+    const previousStock = product.stock;
+    const newStock = isTarget ? quantity : previousStock + quantity;
+    if (newStock < 0) throw new Error('Stock cannot be negative');
+    const difference = newStock - previousStock;
+    if (difference === 0) return { previousStock, newStock, difference };
+    await api.post('/api/pos/stock', { productId, delta: difference, reason, type });
+    await this.refreshSharedData();
     return {
-      previousStock: data.previousStock,
-      newStock: data.newStock,
-      difference: data.difference
+      previousStock, newStock, difference
     };
   }
 
@@ -484,6 +414,7 @@ class Store {
     const saleForDatabase = {
       customerName: (saleData.customerName || '').trim(),
       customerPhone: (saleData.customerPhone || '').trim(),
+      idempotencyKey: saleData.idempotencyKey,
       priceType: saleData.priceType, // 'retail' or 'wholesale'
       items: saleData.items.map(i => ({
         productId: i.productId,
@@ -507,67 +438,8 @@ class Store {
   }
 
   async recordSaleShared(saleData) {
-    if (!supabaseConfigured) {
-      for (const item of saleData.items) {
-        const product = this.getProductById(item.productId);
-        if (!product || product.stock < item.crates) {
-          throw new Error(`Insufficient stock for ${item.name}. Refresh stock and try again.`);
-        }
-      }
-      const timestamp = new Date().toISOString();
-      const dateCode = timestamp.slice(0, 10).replace(/-/g, '');
-      const dailySequence = this.sales.filter(sale => sale.timestamp.startsWith(timestamp.slice(0, 10))).length + 1;
-      const saleNumber = `SF-${dateCode}-${dailySequence.toString().padStart(3, '0')}`;
-      const completedSale = {
-        ...saleData,
-        id: `SALE-${Date.now()}`,
-        saleNumber,
-        timestamp,
-        cashier: this.activeCashier,
-        status: 'COMPLETED'
-      };
-      const newLogs = [];
-      for (const item of saleData.items) {
-        const productIndex = this.products.findIndex(product => product.id === item.productId);
-        const product = this.products[productIndex];
-        const newStock = product.stock - item.crates;
-        this.products[productIndex] = { ...product, stock: newStock };
-        newLogs.push({
-          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          timestamp,
-          productId: item.productId,
-          productName: product.name,
-          type: 'SALE',
-          cratesChanged: -item.crates,
-          previousStock: product.stock,
-          newStock,
-          reason: `Sale #${saleNumber}`,
-          refId: saleNumber,
-          cashier: this.activeCashier
-        });
-      }
-      this.sales.unshift(completedSale);
-      this.stockLogs = [...newLogs, ...this.stockLogs];
-      this.save(STORAGE_KEYS.PRODUCTS, this.products);
-      this.save(STORAGE_KEYS.SALES, this.sales);
-      this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
-      this.notify('PRODUCTS_UPDATED', this.products);
-      this.notify('STOCK_UPDATED', null);
-      this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
-      this.notify('SALE_RECORDED', completedSale);
-      return completedSale;
-    }
-
-    const { data, error } = await supabase.rpc('record_pos_sale', {
-      p_sale: saleData,
-      p_cashier: this.activeCashier
-    });
-    if (error) throw error;
-    const completedSale = data.sale;
-    const changedProducts = new Map(data.products.map(product => [product.id, product]));
-    this.products = this.products.map(product => changedProducts.get(product.id) || product);
-    this.stockLogs = [...data.logs, ...this.stockLogs];
-    this.sales.unshift(completedSale);
+    const { sale: completedSale } = await api.post('/api/pos/sales', saleData);
+    await this.refreshSharedData(false);
     this.notify('PRODUCTS_UPDATED', this.products);
     this.notify('STOCK_UPDATED', null);
     this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
@@ -654,69 +526,50 @@ class Store {
   async markCreditPaidShared(saleNumber) {
     const sale = this.getSaleByNumber(saleNumber);
     if (!sale) return false;
-    if (!supabaseConfigured) {
-      sale.status = 'PAID';
-      sale.paymentDetails = {
-        ...sale.paymentDetails,
-        amountPaid: sale.grandTotal,
-        balanceDue: 0
-      };
-      sale.paidTimestamp = new Date().toISOString();
-      this.save(STORAGE_KEYS.SALES, this.sales);
-      this.notify('SALE_RECORDED', sale);
-      return true;
-    }
-    const { data, error } = await supabase.rpc('mark_pos_sale_paid', { p_sale_number: saleNumber });
-    if (error) throw error;
-    const index = this.sales.findIndex(item => item.saleNumber === saleNumber);
-    this.sales[index] = data;
-    this.notify('SALE_RECORDED', data);
+    await api.post('/api/pos/debt-payment', {
+      saleId: sale.id,
+      amount: this.getSaleBalanceDue(sale),
+      method: 'cash'
+    });
+    await this.refreshSharedData();
     return true;
   }
 
-  async connectToSharedDatabase() {
-    if (!supabaseConfigured) return false;
-    const { error: bootstrapError } = await supabase.rpc('bootstrap_pos', {
-      p_settings: this.settings,
-      p_products: this.products,
-      p_sales: this.sales,
-      p_stock_logs: this.stockLogs
+  async refundSale(sale, amount, reason, isVoid = false) {
+    const returnItems = isVoid
+      ? sale.items.map(item => ({ productId: item.productId, crates: item.crates }))
+      : [];
+    await api.post('/api/pos/refund', {
+      saleId: sale.id,
+      amount,
+      reason,
+      returnItems,
+      void: isVoid
     });
-    if (bootstrapError) throw bootstrapError;
+    await this.refreshSharedData();
+  }
+
+  async connectToSharedDatabase() {
     await this.refreshSharedData(false);
-    this.subscribeToSharedChanges();
     return true;
   }
 
   async refreshSharedData(notify = true) {
-    const [settingsResult, productsResult, salesResult, logsResult] = await Promise.all([
-      supabase.from('pos_settings').select('data').eq('id', 1).single(),
-      supabase.from('pos_products').select('data'),
-      supabase.from('pos_sales').select('data').order('sold_at', { ascending: false }),
-      supabase.from('pos_stock_logs').select('data').order('logged_at', { ascending: false })
-    ]);
-    const queryError = settingsResult.error || productsResult.error || salesResult.error || logsResult.error;
-    if (queryError) throw queryError;
-    this.settings = settingsResult.data.data;
-    this.products = productsResult.data.map(row => row.data);
-    this.sales = salesResult.data.map(row => row.data);
-    this.stockLogs = logsResult.data.map(row => row.data);
+    const snapshot = await api.get('/api/pos');
+    this.settings = snapshot.settings;
+    this.products = snapshot.products;
+    this.sales = snapshot.sales;
+    this.stockLogs = snapshot.stockLogs;
+    if (snapshot.user) {
+      this.currentUser = snapshot.user;
+      this.activeCashier = snapshot.user.name;
+    }
     if (notify) this.notify('REMOTE_STATE_UPDATED', null);
+    return snapshot.user;
   }
 
   subscribeToSharedChanges() {
-    if (!supabaseConfigured) return;
-    supabase.channel('shared-pos-data')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_settings' }, () => this.handleRemoteChange())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_products' }, () => this.handleRemoteChange())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_sales' }, () => this.handleRemoteChange())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_stock_logs' }, () => this.handleRemoteChange())
-      .subscribe((status, error) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('Unable to subscribe to shared POS changes:', error || status);
-          this.notify('SYNC_ERROR', 'Live updates are disconnected. Reload the page to reconnect.');
-        }
-      });
+    return window.setInterval(() => this.handleRemoteChange(), 15000);
   }
 
   async handleRemoteChange() {
@@ -724,7 +577,8 @@ class Store {
       await this.refreshSharedData();
     } catch (error) {
       console.error('Unable to refresh shared POS data:', error);
-      this.notify('SYNC_ERROR', 'Could not refresh shared POS data. Check your connection and reload the page.');
+      this.notify(error.status === 401 ? 'AUTH_EXPIRED' : 'SYNC_ERROR',
+        'Could not refresh shared POS data. Check your connection and sign in again if needed.');
     }
   }
 
@@ -753,64 +607,18 @@ class Store {
     }
   }
 
-  // Reset or seed demo data
-  async resetDemoData() {
-    if (!supabaseConfigured) {
-      localStorage.removeItem(STORAGE_KEYS.SETTINGS);
-      localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
-      localStorage.removeItem(STORAGE_KEYS.SALES);
-      localStorage.removeItem(STORAGE_KEYS.STOCK_LOGS);
-      this.init();
-      this.notify('STATE_RESET', null);
-      return;
-    }
-    const { error } = await supabase.rpc('reset_pos_data', {
-      p_settings: DEFAULT_SETTINGS,
-      p_products: DEFAULT_PRODUCTS,
-      p_stock_logs: DEFAULT_PRODUCTS.map(product => ({
-        id: `log-${Date.now()}-${product.id}`,
-        timestamp: new Date().toISOString(),
-        productId: product.id,
-        productName: product.name,
-        type: 'INITIAL_STOCK',
-        cratesChanged: product.stock,
-        previousStock: 0,
-        newStock: product.stock,
-        reason: 'Initial Inventory Setup',
-        cashier: this.activeCashier
-      }))
-    });
-    if (error) throw error;
+  async migrateLocalData() {
+    const { api } = await import('./api.js');
+    const backup = {
+      settings: this.load(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS),
+      products: this.load(STORAGE_KEYS.PRODUCTS, DEFAULT_PRODUCTS),
+      sales: this.load(STORAGE_KEYS.SALES, []),
+      stockLogs: this.load(STORAGE_KEYS.STOCK_LOGS, [])
+    };
+    const result = await api.post('/api/migrate-local', backup);
     await this.refreshSharedData(false);
-    this.notify('STATE_RESET', null);
-  }
-
-  async importBackup(backup) {
-    if (!backup || typeof backup !== 'object'
-      || !backup.settings || !Array.isArray(backup.products)
-      || !Array.isArray(backup.sales) || !Array.isArray(backup.stockLogs)) {
-      throw new Error('This file is not a valid Sylcat Farms POS backup.');
-    }
-    if (supabaseConfigured) {
-      const { error } = await supabase.rpc('import_pos_backup', {
-        p_settings: backup.settings,
-        p_products: backup.products,
-        p_sales: backup.sales,
-        p_stock_logs: backup.stockLogs
-      });
-      if (error) throw error;
-      await this.refreshSharedData(false);
-    } else {
-      this.settings = backup.settings;
-      this.products = backup.products;
-      this.sales = backup.sales;
-      this.stockLogs = backup.stockLogs;
-      this.save(STORAGE_KEYS.SETTINGS, this.settings);
-      this.save(STORAGE_KEYS.PRODUCTS, this.products);
-      this.save(STORAGE_KEYS.SALES, this.sales);
-      this.save(STORAGE_KEYS.STOCK_LOGS, this.stockLogs);
-    }
-    this.notify('STATE_RESET', null);
+    this.notify('REMOTE_STATE_UPDATED', null);
+    return result;
   }
 }
 

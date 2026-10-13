@@ -52,7 +52,8 @@ export class ReportsController {
     });
 
     sales.forEach(sale => {
-      totalRevenue += sale.grandTotal;
+      if (sale.status === 'VOIDED') return;
+      totalRevenue += Number.isFinite(sale.netTotal) ? sale.netTotal : sale.grandTotal;
       totalCratesSold += sale.totalCrates;
       totalDiscountGiven += (sale.discountAmount || 0);
 
@@ -70,11 +71,12 @@ export class ReportsController {
       const amountPaid = Number.isFinite(Number(sale.paymentDetails?.amountPaid))
         ? Number(sale.paymentDetails.amountPaid)
         : (method === 'Pay Later (Credit)' ? 0 : sale.grandTotal);
-      totalCollected += amountPaid;
+      const collectedAfterRefunds = Math.max(0, amountPaid - (sale.refundedAmount || 0));
+      totalCollected += collectedAfterRefunds;
       if (paymentTotals[method] !== undefined) {
-        paymentTotals[method] += amountPaid;
+        paymentTotals[method] += collectedAfterRefunds;
       } else {
-        paymentTotals[method] = (paymentTotals[method] || 0) + amountPaid;
+        paymentTotals[method] = (paymentTotals[method] || 0) + collectedAfterRefunds;
       }
     });
 
@@ -289,7 +291,7 @@ export class ReportsController {
                   <th>Total Crates</th>
                   <th>Payment</th>
                   <th>Grand Total</th>
-                  <th class="text-right no-print">Receipt</th>
+                  <th class="text-right no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,6 +323,9 @@ export class ReportsController {
                         <button type="button" class="btn btn-sm btn-secondary btn-reprint-receipt" data-salenum="${s.saleNumber}">
                           Reprint Receipt
                         </button>
+                        ${['manager','admin'].includes(document.documentElement.dataset.role) && !['VOIDED','REFUNDED'].includes(s.status)
+                          ? `<button type="button" class="btn btn-sm btn-secondary btn-refund-sale" data-salenum="${s.saleNumber}">Refund</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-void-sale" data-salenum="${s.saleNumber}">Void</button>` : ''}
                       </td>
                     </tr>
                   `;
@@ -388,6 +393,33 @@ export class ReportsController {
         if (sale && typeof this.onReprintRequested === 'function') {
           this.onReprintRequested(sale);
         }
+      });
+    });
+
+    this.container.querySelectorAll('.btn-refund-sale').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const sale = store.getSaleByNumber(btn.dataset.salenum);
+        if (!sale) return;
+        const amount = Number(prompt(`Refund amount in ${store.getSettings().currency || 'GHS'} (up to ${sale.grandTotal.toFixed(2)}):`));
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const reason = prompt('Reason for the refund:');
+        if (!reason?.trim()) return;
+        try {
+          await store.refundSale(sale, amount, reason);
+          this.render();
+        } catch (error) { alert(error.message || 'Unable to refund sale'); }
+      });
+    });
+    this.container.querySelectorAll('.btn-void-sale').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const sale = store.getSaleByNumber(btn.dataset.salenum);
+        if (!sale || !confirm(`Void ${sale.saleNumber}, refund ${formatMoney(sale.grandTotal)}, and restore all sold crates to stock?`)) return;
+        const reason = prompt('Reason for voiding this sale:');
+        if (!reason?.trim()) return;
+        try {
+          await store.refundSale(sale, sale.grandTotal, reason, true);
+          this.render();
+        } catch (error) { alert(error.message || 'Unable to void sale'); }
       });
     });
   }

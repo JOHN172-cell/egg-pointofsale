@@ -53,7 +53,7 @@ export class PaymentModal {
   }
 
   open(saleData) {
-    this.currentSaleData = saleData;
+    this.currentSaleData = { ...saleData, idempotencyKey: crypto.randomUUID() };
     this.activeMethod = 'cash';
     this.amountTendered = saleData.grandTotal;
 
@@ -450,6 +450,7 @@ export class PaymentModal {
   }
 
   async processSale() {
+    if (this.processingSale) return;
     const data = this.currentSaleData;
     const total = data.grandTotal;
     let paymentDetails = {};
@@ -536,6 +537,9 @@ export class PaymentModal {
       };
     }
 
+    this.processingSale = true;
+    const confirmButton = this.modal.querySelector('#btn-confirm-payment');
+    if (confirmButton) confirmButton.disabled = true;
     try {
       // Record completed sale in Store
       const completedSale = await store.recordSale({
@@ -552,6 +556,9 @@ export class PaymentModal {
       }
     } catch (err) {
       this.showError(err.message || 'Failed to complete sale');
+    } finally {
+      this.processingSale = false;
+      if (confirmButton?.isConnected) confirmButton.disabled = false;
     }
   }
 }
