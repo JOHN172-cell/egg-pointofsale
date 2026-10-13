@@ -6,15 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:vercel": "vercel dev",
     "build": "vite build",
-    "preview": "vite preview",
-    "create-admin": "node scripts/create-admin.js"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^6.2.0"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.117.3"
   }
 }
