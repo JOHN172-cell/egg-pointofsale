@@ -6,7 +6,7 @@ Browser-based POS for whole egg crates (30 eggs per crate), including sales, inv
 
 The POS currently works without Supabase, an account or a server database. It saves products, stock, sales and settings in the browser's local storage.
 
-- No sign-in is required. The cashier name is configurable in **Settings**.
+- No sign-in is required. The cashier name is configurable in **Settings** and can be confirmed or changed for each sale at checkout.
 - Data is private to the browser profile and website address being used. A different PC, browser profile, or website address starts with its own data and will not see or update this computer's records.
 - Hosting the site on Vercel makes the page accessible from other PCs, but does not share their browser data.
 - Use **Settings → Export Data (JSON)** regularly to keep a backup. Clearing browser data or using private/incognito browsing may remove local records.
@@ -33,7 +33,7 @@ Each person can open the hosted site, but each browser keeps a separate copy of 
 
 - Whole-crate inventory, retail and wholesale prices, and bulk discounts.
 - Cash, split payments, mobile money, card-terminal references, and credit sales.
-- Receipts with paid amounts and outstanding client balances.
+- Receipts with paid amounts, cashier names, and outstanding client balances.
 - Stock deliveries, adjustments, sales reports, refunds and voids.
 - Theme selection, receipt printing/sharing, stock history and JSON export.
 

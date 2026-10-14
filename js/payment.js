@@ -12,6 +12,7 @@ export class PaymentModal {
     this.onSaleCompleted = onSaleCompleted;
     this.currentSaleData = null;
     this.activeMethod = 'cash'; // 'cash', 'momo', 'card', 'credit', 'split'
+    this.cashierName = '';
 
     // Cash state
     this.amountTendered = 0;
@@ -55,6 +56,7 @@ export class PaymentModal {
   open(saleData) {
     this.currentSaleData = { ...saleData, idempotencyKey: crypto.randomUUID() };
     this.activeMethod = 'cash';
+    this.cashierName = store.activeCashier || store.getSettings().cashierName || '';
     this.amountTendered = saleData.grandTotal;
 
     // Reset split amounts
@@ -91,6 +93,13 @@ export class PaymentModal {
           <div class="payment-crate-count">
             Total Crates: <strong>${Number(data.totalCrates)} Crate${data.totalCrates > 1 ? 's' : ''}</strong> (${escapeHtml(data.priceType).toUpperCase()} PRICE)
           </div>
+        </div>
+
+        <div class="form-group">
+          <label for="sale-cashier-name" class="form-label">Cashier Name <span class="required-star">*</span></label>
+          <input type="text" id="sale-cashier-name" class="form-control"
+            placeholder="Enter cashier's name"
+            value="${escapeHtml(this.cashierName)}" required>
         </div>
 
         <!-- Method Tabs -->
@@ -338,6 +347,13 @@ export class PaymentModal {
   }
 
   bindEvents(total) {
+    const cashierInput = this.modal.querySelector('#sale-cashier-name');
+    if (cashierInput) {
+      cashierInput.addEventListener('input', () => {
+        this.cashierName = cashierInput.value;
+      });
+    }
+
     // Switch payment tabs
     this.modal.querySelectorAll('.pay-method-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -453,6 +469,13 @@ export class PaymentModal {
     if (this.processingSale) return;
     const data = this.currentSaleData;
     const total = data.grandTotal;
+    const cashierInput = this.modal.querySelector('#sale-cashier-name');
+    this.cashierName = cashierInput ? cashierInput.value.trim() : this.cashierName.trim();
+    if (!this.cashierName) {
+      this.showError('Cashier Name is required to complete the sale.');
+      cashierInput?.focus();
+      return;
+    }
     let paymentDetails = {};
     let customerName = data.customerName;
 
@@ -544,6 +567,7 @@ export class PaymentModal {
       // Record completed sale in Store
       const completedSale = await store.recordSale({
         ...data,
+        cashierName: this.cashierName,
         customerName,
         paymentMethod: this.activeMethod,
         paymentDetails

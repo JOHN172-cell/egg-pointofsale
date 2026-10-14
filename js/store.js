@@ -484,6 +484,10 @@ class Store {
     if (balanceDue > 0 && !(saleData.customerName || '').trim()) {
       throw new Error('Customer name is required when a balance is due.');
     }
+    const cashier = (saleData.cashierName || this.activeCashier || '').trim();
+    if (!cashier) {
+      throw new Error('Cashier name is required to complete the sale.');
+    }
     const timestamp = new Date().toISOString();
     const dayPrefix = timestamp.slice(0, 10).replaceAll('-', '');
     const dayCount = this.sales.filter(sale => sale.timestamp?.startsWith(timestamp.slice(0, 10))).length + 1;
@@ -491,7 +495,7 @@ class Store {
       id: crypto.randomUUID(),
       saleNumber: `SF-${dayPrefix}-${String(dayCount).padStart(3, '0')}`,
       timestamp,
-      cashier: this.activeCashier,
+      cashier,
       customerName: (saleData.customerName || '').trim(),
       customerPhone: (saleData.customerPhone || '').trim(),
       priceType: saleData.priceType,
@@ -520,7 +524,7 @@ class Store {
         newStock: product.stock,
         reason: `Sale ${completedSale.saleNumber}`,
         refId: completedSale.saleNumber,
-        cashier: this.activeCashier
+        cashier
       });
     }
     this.sales.unshift(completedSale);
