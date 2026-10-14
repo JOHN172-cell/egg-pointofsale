@@ -481,8 +481,8 @@ class Store {
     const paymentDetails = saleData.paymentDetails || {};
     const amountPaid = Math.min(grandTotal, Math.max(0, Number(paymentDetails.amountPaid) || 0));
     const balanceDue = Math.max(0, Math.round((grandTotal - amountPaid) * 100) / 100);
-    if (balanceDue > 0 && !(saleData.customerName || '').trim()) {
-      throw new Error('Customer name is required when a balance is due.');
+    if (!(saleData.customerName || '').trim()) {
+      throw new Error('Client name is required to complete the sale.');
     }
     const cashier = (saleData.cashierName || this.activeCashier || '').trim();
     if (!cashier) {

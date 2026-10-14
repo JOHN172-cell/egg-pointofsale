@@ -108,10 +108,10 @@ export class PaymentModal {
 
         <div class="form-row">
           <div class="form-group form-col">
-            <label for="sale-customer-name" class="form-label">Client Name (Optional)</label>
+            <label for="sale-customer-name" class="form-label">Client Name <span class="required-star">*</span></label>
             <input type="text" id="sale-customer-name" class="form-control"
               placeholder="Client or business name"
-              value="${escapeHtml(this.customerName)}">
+              value="${escapeHtml(this.customerName)}" required>
           </div>
           <div class="form-group form-col">
             <label for="sale-customer-location" class="form-label">Client Location (Optional)</label>
@@ -509,6 +509,11 @@ export class PaymentModal {
     if (!this.cashierName) {
       this.showError('Cashier Name is required to complete the sale.');
       cashierInput?.focus();
+      return;
+    }
+    if (!this.customerName) {
+      this.showError('Client Name is required to complete the sale.');
+      customerNameInput?.focus();
       return;
     }
     let paymentDetails = {};
