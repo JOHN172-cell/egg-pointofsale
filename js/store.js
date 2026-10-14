@@ -497,6 +497,7 @@ class Store {
       timestamp,
       cashier,
       customerName: (saleData.customerName || '').trim(),
+      customerLocation: (saleData.customerLocation || '').trim(),
       customerPhone: (saleData.customerPhone || '').trim(),
       priceType: saleData.priceType,
       items,

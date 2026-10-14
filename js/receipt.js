@@ -69,6 +69,9 @@ export class ReceiptModal {
     if (sale.customerName) {
       lines.push(`Client / Name:  ${sale.customerName}`);
     }
+    if (sale.customerLocation) {
+      lines.push(`Client Location: ${sale.customerLocation}`);
+    }
     lines.push(`Pricing Mode:   ${sale.priceType.toUpperCase()}`);
     lines.push('--------------------------------');
     lines.push('SIZE        QTY     RATE    TOTAL');
@@ -240,6 +243,12 @@ export class ReceiptModal {
                 <div class="meta-row">
                   <span class="meta-label">Client Phone:</span>
                   <span class="meta-val">${escapeHtml(sale.customerPhone)}</span>
+                </div>
+              ` : ''}
+              ${sale.customerLocation ? `
+                <div class="meta-row">
+                  <span class="meta-label">Client Location:</span>
+                  <span class="meta-val">${escapeHtml(sale.customerLocation)}</span>
                 </div>
               ` : ''}
               <div class="meta-row">

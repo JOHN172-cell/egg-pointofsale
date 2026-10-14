@@ -33,7 +33,7 @@ Each person can open the hosted site, but each browser keeps a separate copy of 
 
 - Whole-crate inventory, retail and wholesale prices, and bulk discounts.
 - Cash, split payments, mobile money, card-terminal references, and credit sales.
-- Receipts with paid amounts, cashier names, and outstanding client balances.
+- Receipts with paid amounts, cashier names, client names and locations, and outstanding client balances.
 - Stock deliveries, adjustments, sales reports, refunds and voids.
 - Theme selection, receipt printing/sharing, stock history and JSON export.
 

@@ -13,6 +13,8 @@ export class PaymentModal {
     this.currentSaleData = null;
     this.activeMethod = 'cash'; // 'cash', 'momo', 'card', 'credit', 'split'
     this.cashierName = '';
+    this.customerName = '';
+    this.customerLocation = '';
 
     // Cash state
     this.amountTendered = 0;
@@ -57,6 +59,8 @@ export class PaymentModal {
     this.currentSaleData = { ...saleData, idempotencyKey: crypto.randomUUID() };
     this.activeMethod = 'cash';
     this.cashierName = store.activeCashier || store.getSettings().cashierName || '';
+    this.customerName = saleData.customerName || '';
+    this.customerLocation = saleData.customerLocation || '';
     this.amountTendered = saleData.grandTotal;
 
     // Reset split amounts
@@ -100,6 +104,21 @@ export class PaymentModal {
           <input type="text" id="sale-cashier-name" class="form-control"
             placeholder="Enter cashier's name"
             value="${escapeHtml(this.cashierName)}" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group form-col">
+            <label for="sale-customer-name" class="form-label">Client Name (Optional)</label>
+            <input type="text" id="sale-customer-name" class="form-control"
+              placeholder="Client or business name"
+              value="${escapeHtml(this.customerName)}">
+          </div>
+          <div class="form-group form-col">
+            <label for="sale-customer-location" class="form-label">Client Location (Optional)</label>
+            <input type="text" id="sale-customer-location" class="form-control"
+              placeholder="Town, area, or address"
+              value="${escapeHtml(this.customerLocation)}">
+          </div>
         </div>
 
         <!-- Method Tabs -->
@@ -353,6 +372,18 @@ export class PaymentModal {
         this.cashierName = cashierInput.value;
       });
     }
+    const customerNameInput = this.modal.querySelector('#sale-customer-name');
+    if (customerNameInput) {
+      customerNameInput.addEventListener('input', () => {
+        this.customerName = customerNameInput.value;
+      });
+    }
+    const customerLocationInput = this.modal.querySelector('#sale-customer-location');
+    if (customerLocationInput) {
+      customerLocationInput.addEventListener('input', () => {
+        this.customerLocation = customerLocationInput.value;
+      });
+    }
 
     // Switch payment tabs
     this.modal.querySelectorAll('.pay-method-tab').forEach(tab => {
@@ -470,21 +501,25 @@ export class PaymentModal {
     const data = this.currentSaleData;
     const total = data.grandTotal;
     const cashierInput = this.modal.querySelector('#sale-cashier-name');
+    const customerNameInput = this.modal.querySelector('#sale-customer-name');
+    const customerLocationInput = this.modal.querySelector('#sale-customer-location');
     this.cashierName = cashierInput ? cashierInput.value.trim() : this.cashierName.trim();
+    this.customerName = customerNameInput ? customerNameInput.value.trim() : this.customerName.trim();
+    this.customerLocation = customerLocationInput ? customerLocationInput.value.trim() : this.customerLocation.trim();
     if (!this.cashierName) {
       this.showError('Cashier Name is required to complete the sale.');
       cashierInput?.focus();
       return;
     }
     let paymentDetails = {};
-    let customerName = data.customerName;
+    let customerName = this.customerName;
 
     // Validate based on active payment method
     if (this.activeMethod === 'cash') {
       const balanceDue = Math.round(Math.max(0, total - this.amountTendered) * 100) / 100;
       if (balanceDue > 0) {
         const customerInput = this.modal.querySelector('#cash-customer-name');
-        customerName = customerInput ? customerInput.value.trim() : '';
+        customerName = (customerInput ? customerInput.value.trim() : '') || customerName;
         if (!customerName) {
           this.showError('Customer Name is required when a balance is due.');
           return;
@@ -515,7 +550,7 @@ export class PaymentModal {
       };
     } else if (this.activeMethod === 'credit') {
       const creditCust = this.modal.querySelector('#credit-customer-name');
-      const custVal = creditCust ? creditCust.value.trim() : '';
+      const custVal = (creditCust ? creditCust.value.trim() : '') || customerName;
       if (!custVal) {
         this.showError('Customer Name is required for Credit / Pay Later sales.');
         return;
@@ -543,7 +578,7 @@ export class PaymentModal {
           return;
         }
         const creditCust = this.modal.querySelector('#split-credit-customer-name');
-        const custVal = creditCust ? creditCust.value.trim() : '';
+        const custVal = (creditCust ? creditCust.value.trim() : '') || customerName;
         if (!custVal) {
           this.showError('Customer Name is required when a split payment leaves a balance due.');
           return;
@@ -569,6 +604,7 @@ export class PaymentModal {
         ...data,
         cashierName: this.cashierName,
         customerName,
+        customerLocation: this.customerLocation,
         paymentMethod: this.activeMethod,
         paymentDetails
       });
