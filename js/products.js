@@ -96,6 +96,9 @@ export class ProductsController {
                         <button type="button" class="btn btn-sm ${prod.active ? 'btn-outline-danger' : 'btn-outline-success'} btn-toggle-active" data-id="${escapeHtml(prod.id)}">
                           ${prod.active ? 'Deactivate' : 'Activate'}
                         </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete-product" data-id="${escapeHtml(prod.id)}">
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -214,6 +217,20 @@ export class ProductsController {
           await store.toggleProductActive(id);
         } catch (err) {
           alert(err.message || 'Unable to update product');
+        }
+      });
+    });
+
+    this.container.querySelectorAll('.btn-delete-product').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const product = store.getProductById(id);
+        if (!product) return;
+        if (!confirm(`Delete "${product.name}"? This is allowed only when it has zero stock and no sales history. Products with sales history must be deactivated instead.`)) return;
+        try {
+          store.deleteProduct(id);
+        } catch (error) {
+          alert(error.message || 'Unable to delete product.');
         }
       });
     });

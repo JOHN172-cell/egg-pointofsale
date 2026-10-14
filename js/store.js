@@ -318,6 +318,24 @@ class Store {
     return this.updateProduct(id, { active: !prod.active });
   }
 
+  deleteProduct(id) {
+    const index = this.products.findIndex(product => product.id === id);
+    if (index === -1) return false;
+    const product = this.products[index];
+    if (product.stock > 0) {
+      throw new Error('This product still has stock. Sell or adjust its stock to zero before deleting it.');
+    }
+    if (this.sales.some(sale => sale.items?.some(item => item.productId === id))) {
+      throw new Error('This product is in sales history and cannot be deleted. Deactivate it to keep past receipts and reports intact.');
+    }
+    this.products.splice(index, 1);
+    this.stockLogs = this.stockLogs.filter(log => log.productId !== id);
+    this.persistInventory();
+    this.notify('PRODUCTS_UPDATED', this.products);
+    this.notify('STOCK_LOGS_UPDATED', this.stockLogs);
+    return true;
+  }
+
   // Stock
   recordDelivery({ productId, cratesReceived, supplierName, notes }) {
     const prod = this.getProductById(productId);
